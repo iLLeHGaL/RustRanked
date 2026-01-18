@@ -14,21 +14,15 @@ COPY packages/database/package.json ./packages/database/
 # Copy prisma schema (needed for postinstall)
 COPY packages/database/prisma ./packages/database/prisma
 
-# Install dependencies
+# Install dependencies (including dev deps for tsx)
 RUN pnpm install --no-frozen-lockfile
 
 # Copy source code
 COPY apps/discord-bot ./apps/discord-bot
 COPY packages/database ./packages/database
 
-# Build the discord bot
-RUN pnpm --filter discord-bot build
-
-# Verify build output exists
-RUN ls -la /app/apps/discord-bot/dist/
-
 # Set working directory to the bot
 WORKDIR /app/apps/discord-bot
 
-# Start the bot
-CMD ["node", "dist/index.js"]
+# Use tsx to run TypeScript directly
+CMD ["npx", "tsx", "src/index.ts"]
