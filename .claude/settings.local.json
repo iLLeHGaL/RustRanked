@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir \"C:\\\\Users\\\\Alexis\\\\Claude Projects\\\\RustRanked\")",
+      "Bash(node -e:*)",
+      "Bash(pnpm install)",
+      "Bash(npm install:*)",
+      "Bash(pnpm db:generate:*)",
+      "Bash(pnpm db:push:*)",
+      "Bash(pnpm dev:*)",
+      "Bash(taskkill:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(timeout:*)",
+      "Bash(ping:*)",
+      "Bash(npx prisma studio)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(del \"\\\\?\\\\C:\\\\Users\\\\Alexis\\\\Claude Projects\\\\RustRanked\\\\apps\\\\web\\\\nul\")",
+      "Bash(cmd //c \"del /f \"\"\\\\?\\\\C:\\\\Users\\\\Alexis\\\\Claude Projects\\\\RustRanked\\\\apps\\\\web\\\\nul\"\"\")"
+    ]
+  }
+}

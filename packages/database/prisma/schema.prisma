@@ -1,0 +1,222 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Discord (primary auth)
+  discordId     String    @unique
+  discordName   String
+  discordAvatar String?
+
+  // Steam (linked account)
+  steamId       String?   @unique
+  steamName     String?
+  steamAvatar   String?
+
+  // Contact
+  email         String?
+
+  // Verification
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  verificationId     String?            // Stripe Identity verification session ID
+  verifiedAt         DateTime?
+
+  // Stripe
+  stripeCustomerId String? @unique
+
+  // Stats
+  elo           Int      @default(1000)
+  peakElo       Int      @default(1000)
+  kills         Int      @default(0)
+  deaths        Int      @default(0)
+  wins          Int      @default(0)
+  losses        Int      @default(0)
+  matchesPlayed Int      @default(0)
+
+  // Relations
+  subscription  Subscription?
+  matchHistory  MatchPlayer[]
+  sessions      Session[]
+  bans          Ban[]
+
+  @@index([discordId])
+  @@index([steamId])
+  @@index([elo])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// SUBSCRIPTION & PAYMENTS
+// ============================================
+
+model Subscription {
+  id                 String    @id @default(cuid())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  userId             String    @unique
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Stripe
+  stripeSubscriptionId String  @unique
+  stripePriceId        String
+  status               SubscriptionStatus
+
+  // Billing
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean   @default(false)
+
+  @@index([status])
+}
+
+// ============================================
+// MATCHES & STATS
+// ============================================
+
+model Match {
+  id          String      @id @default(cuid())
+  createdAt   DateTime    @default(now())
+  endedAt     DateTime?
+
+  // Server info
+  serverId    String
+  server      GameServer  @relation(fields: [serverId], references: [id])
+
+  // Match details
+  status      MatchStatus @default(IN_PROGRESS)
+  winningTeam Team?
+  duration    Int?        // seconds
+
+  // Participants
+  players     MatchPlayer[]
+
+  @@index([serverId])
+  @@index([status])
+}
+
+model MatchPlayer {
+  id        String   @id @default(cuid())
+
+  matchId   String
+  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  // Team assignment
+  team      Team
+
+  // Performance
+  kills     Int      @default(0)
+  deaths    Int      @default(0)
+  assists   Int      @default(0)
+
+  // ELO change from this match
+  eloChange Int      @default(0)
+  eloBefore Int
+  eloAfter  Int
+
+  @@unique([matchId, userId])
+  @@index([userId])
+}
+
+// ============================================
+// GAME SERVERS
+// ============================================
+
+model GameServer {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  name        String
+  description String?
+
+  // Connection
+  ip          String
+  port        Int
+  rconPort    Int?
+
+  // Auth
+  apiKeyHash  String   @unique  // Hashed API key for server auth
+
+  // Status
+  isActive    Boolean  @default(true)
+  lastSeen    DateTime?
+
+  // Relations
+  matches     Match[]
+
+  @@unique([ip, port])
+}
+
+// ============================================
+// MODERATION
+// ============================================
+
+model Ban {
+  id          String    @id @default(cuid())
+  createdAt   DateTime  @default(now())
+
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+
+  reason      String
+  bannedBy    String    // Admin user ID or "SYSTEM"
+  expiresAt   DateTime? // null = permanent
+  isActive    Boolean   @default(true)
+
+  @@index([userId])
+  @@index([isActive])
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum VerificationStatus {
+  UNVERIFIED  // No verification attempted
+  PENDING     // Verification in progress
+  VERIFIED    // Successfully verified
+  REJECTED    // Verification failed
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  TRIALING
+}
+
+enum MatchStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+}
+
+enum Team {
+  TEAM_A
+  TEAM_B
+}

@@ -1,0 +1,418 @@
+"use client";
+
+import { signOut } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
+import {
+  User,
+  type Subscription,
+  VerificationStatus,
+  SubscriptionStatus,
+} from "@rustranked/database";
+import {
+  Shield,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  XCircle,
+  CreditCard,
+  Gamepad2,
+  Trophy,
+  Target,
+  Skull,
+  TrendingUp,
+  LogOut,
+  ExternalLink,
+} from "lucide-react";
+import { getKDRatio, getWinRate, formatElo } from "@/lib/utils";
+
+type UserWithSubscription = User & {
+  subscription: Subscription | null;
+};
+
+export function DashboardContent({ user }: { user: UserWithSubscription }) {
+  const searchParams = useSearchParams();
+  const error = searchParams.get("error");
+  const success = searchParams.get("success");
+
+  const isVerified = user.verificationStatus === VerificationStatus.VERIFIED;
+  const hasActiveSubscription =
+    user.subscription?.status === SubscriptionStatus.ACTIVE;
+  const canPlay = isVerified && hasActiveSubscription;
+
+  return (
+    <div className="min-h-screen bg-dark-950">
+      {/* Header */}
+      <header className="border-b border-zinc-800 bg-dark-950/80 backdrop-blur-md sticky top-0 z-50">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rust-600">
+              <span className="text-lg font-bold text-white">R</span>
+            </div>
+            <span className="text-xl font-bold text-white">RustRanked</span>
+          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/leaderboard"
+              className="text-sm text-zinc-400 hover:text-white transition-colors"
+            >
+              Leaderboard
+            </Link>
+            <Link
+              href="/billing"
+              className="text-sm text-zinc-400 hover:text-white transition-colors"
+            >
+              Billing
+            </Link>
+            <button
+              onClick={() => signOut({ callbackUrl: "/" })}
+              className="btn-ghost text-sm"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Alerts */}
+        {error && (
+          <div className="mb-6 rounded-lg bg-red-500/10 border border-red-500/20 p-4 flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0" />
+            <p className="text-sm text-red-400">
+              {error === "steam_verification_failed" &&
+                "Failed to verify Steam account. Please try again."}
+              {error === "steam_already_linked" &&
+                "This Steam account is already linked to another user."}
+            </p>
+          </div>
+        )}
+        {success && (
+          <div className="mb-6 rounded-lg bg-green-500/10 border border-green-500/20 p-4 flex items-center gap-3">
+            <CheckCircle className="h-5 w-5 text-green-400 flex-shrink-0" />
+            <p className="text-sm text-green-400">
+              {success === "steam_linked" &&
+                "Steam account linked successfully!"}
+              {success === "subscribed" &&
+                "Subscription activated! Welcome to RustRanked."}
+              {success === "verified" &&
+                "Identity verified successfully!"}
+            </p>
+          </div>
+        )}
+
+        {/* Profile Header */}
+        <div className="card mb-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+            <div className="relative">
+              {user.discordAvatar ? (
+                <Image
+                  src={user.discordAvatar}
+                  alt={user.discordName}
+                  width={80}
+                  height={80}
+                  className="rounded-full"
+                />
+              ) : (
+                <div className="h-20 w-20 rounded-full bg-zinc-700 flex items-center justify-center">
+                  <User className="h-8 w-8 text-zinc-400" />
+                </div>
+              )}
+              {canPlay && (
+                <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-green-500 flex items-center justify-center border-2 border-dark-950">
+                  <CheckCircle className="h-4 w-4 text-white" />
+                </div>
+              )}
+            </div>
+            <div className="flex-1">
+              <h1 className="text-2xl font-bold text-white">
+                {user.discordName}
+              </h1>
+              <div className="mt-1 flex flex-wrap items-center gap-4 text-sm text-zinc-400">
+                {user.steamName && (
+                  <span className="flex items-center gap-1">
+                    <Gamepad2 className="h-4 w-4" />
+                    {user.steamName}
+                  </span>
+                )}
+                <span className="flex items-center gap-1">
+                  <Trophy className="h-4 w-4 text-rust-500" />
+                  {formatElo(user.elo)} ELO
+                </span>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              {!isVerified && (
+                <Link href="/verify" className="btn-primary">
+                  <Shield className="h-4 w-4 mr-2" />
+                  Verify ID
+                </Link>
+              )}
+              {!hasActiveSubscription && (
+                <Link href="/subscribe" className="btn-primary">
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Subscribe
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Status Cards */}
+        <div className="grid gap-6 md:grid-cols-3 mb-8">
+          {/* Steam Status */}
+          <StatusCard
+            title="Steam Account"
+            icon={Gamepad2}
+            status={user.steamId ? "complete" : "required"}
+            statusText={user.steamId ? "Linked" : "Not Linked"}
+            action={
+              !user.steamId ? (
+                <Link
+                  href="/api/steam/link"
+                  className="btn-secondary text-sm mt-4"
+                >
+                  Link Steam
+                  <ExternalLink className="h-4 w-4 ml-2" />
+                </Link>
+              ) : null
+            }
+          >
+            {user.steamId ? (
+              <p className="text-sm text-zinc-400 mt-2">
+                Connected as {user.steamName}
+              </p>
+            ) : (
+              <p className="text-sm text-zinc-400 mt-2">
+                Link your Steam account to play on RustRanked servers
+              </p>
+            )}
+          </StatusCard>
+
+          {/* Verification Status */}
+          <StatusCard
+            title="ID Verification"
+            icon={Shield}
+            status={
+              user.verificationStatus === VerificationStatus.VERIFIED
+                ? "complete"
+                : user.verificationStatus === VerificationStatus.PENDING
+                  ? "pending"
+                  : user.verificationStatus === VerificationStatus.REJECTED
+                    ? "error"
+                    : "required"
+            }
+            statusText={getVerificationStatusText(user.verificationStatus)}
+            action={
+              user.verificationStatus === VerificationStatus.UNVERIFIED ||
+              user.verificationStatus === VerificationStatus.REJECTED ? (
+                <Link href="/verify" className="btn-secondary text-sm mt-4">
+                  {user.verificationStatus === VerificationStatus.REJECTED
+                    ? "Retry Verification"
+                    : "Start Verification"}
+                </Link>
+              ) : null
+            }
+          >
+            <p className="text-sm text-zinc-400 mt-2">
+              {user.verificationStatus === VerificationStatus.VERIFIED
+                ? "Your identity has been verified"
+                : user.verificationStatus === VerificationStatus.PENDING
+                  ? "Verification in progress..."
+                  : user.verificationStatus === VerificationStatus.REJECTED
+                    ? "Verification failed. Please contact support."
+                    : "Verify your ID to prevent cheaters"}
+            </p>
+          </StatusCard>
+
+          {/* Subscription Status */}
+          <StatusCard
+            title="Subscription"
+            icon={CreditCard}
+            status={hasActiveSubscription ? "complete" : "required"}
+            statusText={
+              hasActiveSubscription
+                ? "Active"
+                : user.subscription?.status === SubscriptionStatus.PAST_DUE
+                  ? "Past Due"
+                  : "Inactive"
+            }
+            action={
+              !hasActiveSubscription ? (
+                <Link href="/subscribe" className="btn-secondary text-sm mt-4">
+                  Subscribe Now
+                </Link>
+              ) : null
+            }
+          >
+            {hasActiveSubscription && user.subscription ? (
+              <p className="text-sm text-zinc-400 mt-2">
+                Renews on{" "}
+                {new Date(
+                  user.subscription.currentPeriodEnd
+                ).toLocaleDateString()}
+              </p>
+            ) : (
+              <p className="text-sm text-zinc-400 mt-2">
+                Subscribe to access ranked servers
+              </p>
+            )}
+          </StatusCard>
+        </div>
+
+        {/* Stats Grid */}
+        <h2 className="text-xl font-bold text-white mb-4">Your Stats</h2>
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-4 mb-8">
+          <StatCard
+            icon={Trophy}
+            label="ELO Rating"
+            value={formatElo(user.elo)}
+            subtext={`Peak: ${formatElo(user.peakElo)}`}
+          />
+          <StatCard
+            icon={Target}
+            label="K/D Ratio"
+            value={getKDRatio(user.kills, user.deaths)}
+            subtext={`${user.kills} kills / ${user.deaths} deaths`}
+          />
+          <StatCard
+            icon={TrendingUp}
+            label="Win Rate"
+            value={getWinRate(user.wins, user.losses)}
+            subtext={`${user.wins}W - ${user.losses}L`}
+          />
+          <StatCard
+            icon={Skull}
+            label="Matches"
+            value={user.matchesPlayed.toString()}
+            subtext="Total played"
+          />
+        </div>
+
+        {/* Access Status */}
+        {canPlay ? (
+          <div className="card bg-green-500/5 border-green-500/20">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10">
+                <CheckCircle className="h-6 w-6 text-green-500" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-white">
+                  You're ready to play!
+                </h3>
+                <p className="text-sm text-zinc-400">
+                  Connect to any RustRanked server to start playing.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="card bg-yellow-500/5 border-yellow-500/20">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-yellow-500/10">
+                <AlertCircle className="h-6 w-6 text-yellow-500" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-white">
+                  Complete setup to play
+                </h3>
+                <p className="text-sm text-zinc-400">
+                  {!user.steamId && "Link your Steam account. "}
+                  {!isVerified && "Verify your ID. "}
+                  {!hasActiveSubscription && "Subscribe to access servers."}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function StatusCard({
+  title,
+  icon: Icon,
+  status,
+  statusText,
+  children,
+  action,
+}: {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  status: "complete" | "pending" | "required" | "error";
+  statusText: string;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  const statusColors = {
+    complete: "text-green-400 bg-green-500/10",
+    pending: "text-yellow-400 bg-yellow-500/10",
+    required: "text-zinc-400 bg-zinc-500/10",
+    error: "text-red-400 bg-red-500/10",
+  };
+
+  const StatusIcon = {
+    complete: CheckCircle,
+    pending: Clock,
+    required: AlertCircle,
+    error: XCircle,
+  }[status];
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <Icon className="h-5 w-5 text-zinc-400" />
+          <h3 className="font-medium text-white">{title}</h3>
+        </div>
+        <div
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${statusColors[status]}`}
+        >
+          <StatusIcon className="h-3.5 w-3.5" />
+          {statusText}
+        </div>
+      </div>
+      {children}
+      {action}
+    </div>
+  );
+}
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  subtext,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  subtext: string;
+}) {
+  return (
+    <div className="card">
+      <div className="flex items-center gap-2 mb-2">
+        <Icon className="h-4 w-4 text-rust-500" />
+        <span className="text-sm text-zinc-400">{label}</span>
+      </div>
+      <p className="text-2xl font-bold text-white">{value}</p>
+      <p className="text-xs text-zinc-500 mt-1">{subtext}</p>
+    </div>
+  );
+}
+
+function getVerificationStatusText(status: VerificationStatus): string {
+  switch (status) {
+    case VerificationStatus.VERIFIED:
+      return "Verified";
+    case VerificationStatus.PENDING:
+      return "Pending";
+    case VerificationStatus.REJECTED:
+      return "Rejected";
+    default:
+      return "Not Verified";
+  }
+}
