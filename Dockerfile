@@ -1,6 +1,7 @@
 FROM node:20-slim
 
-# Install pnpm
+# Install pnpm and OpenSSL
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 RUN npm install -g pnpm
 
 WORKDIR /app
@@ -10,6 +11,9 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/discord-bot/package.json ./apps/discord-bot/
 COPY packages/database/package.json ./packages/database/
 
+# Copy prisma schema (needed for postinstall)
+COPY packages/database/prisma ./packages/database/prisma
+
 # Install dependencies
 RUN pnpm install --no-frozen-lockfile
 
@@ -17,11 +21,11 @@ RUN pnpm install --no-frozen-lockfile
 COPY apps/discord-bot ./apps/discord-bot
 COPY packages/database ./packages/database
 
-# Generate Prisma client
-RUN cd packages/database && pnpm prisma generate
-
 # Build the discord bot
 RUN pnpm --filter discord-bot build
+
+# Expose API port
+EXPOSE 3001
 
 # Start the bot
 CMD ["pnpm", "--filter", "discord-bot", "start"]
