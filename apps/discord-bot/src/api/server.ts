@@ -26,6 +26,13 @@ async function handleRequest(
   // CORS headers
   res.setHeader("Content-Type", "application/json");
 
+  // Health check endpoint (no auth required)
+  if (req.url === "/health" || req.url === "/") {
+    res.writeHead(200);
+    res.end(JSON.stringify({ status: "ok" }));
+    return;
+  }
+
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     res.end();
