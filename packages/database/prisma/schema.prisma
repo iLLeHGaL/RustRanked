@@ -52,6 +52,7 @@ model User {
   matchHistory  MatchPlayer[]
   sessions      Session[]
   bans          Ban[]
+  votes         Vote[]
 
   @@index([discordId])
   @@index([steamId])
@@ -220,4 +221,90 @@ enum MatchStatus {
 enum Team {
   TEAM_A
   TEAM_B
+}
+
+enum ServerType {
+  US_MAIN
+  US_MONDAYS
+  EU_MAIN
+  EU_MONDAYS
+}
+
+// ============================================
+// MAP VOTING
+// ============================================
+
+model MapOption {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  name        String
+  description String?
+  imageUrl    String?
+
+  // Relations
+  votes         Vote[]
+  votingPeriods VotingPeriodMap[]
+
+  @@index([name])
+}
+
+model VotingPeriod {
+  id          String     @id @default(cuid())
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Which server this voting is for
+  serverType  ServerType
+
+  // Voting window
+  startsAt    DateTime
+  endsAt      DateTime
+  isActive    Boolean    @default(false)
+
+  // Wipe info
+  wipeDate    DateTime?
+
+  // Created by admin
+  createdBy   String
+
+  // Relations
+  mapOptions  VotingPeriodMap[]
+  votes       Vote[]
+
+  @@index([serverType])
+  @@index([isActive])
+  @@index([startsAt, endsAt])
+}
+
+model VotingPeriodMap {
+  id              String       @id @default(cuid())
+
+  votingPeriodId  String
+  votingPeriod    VotingPeriod @relation(fields: [votingPeriodId], references: [id], onDelete: Cascade)
+
+  mapOptionId     String
+  mapOption       MapOption    @relation(fields: [mapOptionId], references: [id], onDelete: Cascade)
+
+  @@unique([votingPeriodId, mapOptionId])
+}
+
+model Vote {
+  id              String       @id @default(cuid())
+  createdAt       DateTime     @default(now())
+
+  userId          String
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  votingPeriodId  String
+  votingPeriod    VotingPeriod @relation(fields: [votingPeriodId], references: [id], onDelete: Cascade)
+
+  mapOptionId     String
+  mapOption       MapOption    @relation(fields: [mapOptionId], references: [id], onDelete: Cascade)
+
+  // User can only vote once per voting period
+  @@unique([userId, votingPeriodId])
+  @@index([votingPeriodId])
+  @@index([mapOptionId])
 }

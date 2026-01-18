@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { User } from "lucide-react";
-import Image from "next/image";
+import { UserMenu } from "./user-menu";
 
 export function Navbar() {
   const { data: session, status } = useSession();
@@ -11,7 +10,7 @@ export function Navbar() {
   const isLoggedIn = !!session;
 
   return (
-    <nav className="border-b border-zinc-800 bg-dark-950/80 backdrop-blur-md">
+    <nav className="border-b border-zinc-800 bg-dark-950/80 backdrop-blur-md sticky top-0 z-50">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rust-600">
@@ -28,22 +27,9 @@ export function Navbar() {
           </Link>
 
           {isLoading ? (
-            <div className="h-9 w-24 bg-zinc-800 rounded-lg animate-pulse" />
+            <div className="h-9 w-9 bg-zinc-800 rounded-full animate-pulse" />
           ) : isLoggedIn ? (
-            <Link href="/dashboard" className="flex items-center gap-2 btn-primary">
-              {session.user?.image ? (
-                <Image
-                  src={session.user.image}
-                  alt=""
-                  width={24}
-                  height={24}
-                  className="rounded-full"
-                />
-              ) : (
-                <User className="h-4 w-4" />
-              )}
-              Dashboard
-            </Link>
+            <UserMenu user={session.user} />
           ) : (
             <Link href="/login" className="btn-primary">
               Sign In
