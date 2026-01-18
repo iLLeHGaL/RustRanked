@@ -11,6 +11,9 @@ if (!token || !clientId) {
   process.exit(1);
 }
 
+// Assert types after validation
+const validClientId: string = clientId;
+
 const rest = new REST().setToken(token);
 
 async function deployCommands() {
@@ -21,13 +24,13 @@ async function deployCommands() {
 
     if (guildId) {
       // Deploy to specific guild (faster for development)
-      await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
+      await rest.put(Routes.applicationGuildCommands(validClientId, guildId), {
         body: commandData,
       });
       console.log(`✅ Deployed commands to guild ${guildId}`);
     } else {
       // Deploy globally (takes up to 1 hour to propagate)
-      await rest.put(Routes.applicationCommands(clientId), {
+      await rest.put(Routes.applicationCommands(validClientId), {
         body: commandData,
       });
       console.log("✅ Deployed commands globally");
