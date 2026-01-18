@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
-  User,
+  User as UserType,
   type Subscription,
   VerificationStatus,
   SubscriptionStatus,
@@ -24,10 +24,11 @@ import {
   TrendingUp,
   LogOut,
   ExternalLink,
+  User,
 } from "lucide-react";
 import { getKDRatio, getWinRate, formatElo } from "@/lib/utils";
 
-type UserWithSubscription = User & {
+type UserWithSubscription = UserType & {
   subscription: Subscription | null;
 };
 
