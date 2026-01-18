@@ -25,6 +25,12 @@ export function Navbar() {
           >
             Leaderboard
           </Link>
+          <Link
+            href="/map-voting"
+            className="text-sm text-zinc-400 hover:text-white transition-colors"
+          >
+            Map Voting
+          </Link>
 
           {isLoading ? (
             <div className="h-9 w-9 bg-zinc-800 rounded-full animate-pulse" />
