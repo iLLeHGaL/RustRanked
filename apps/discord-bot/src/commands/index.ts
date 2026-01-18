@@ -2,8 +2,10 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
+  PermissionFlagsBits,
 } from "discord.js";
 import { prisma, VerificationStatus, SubscriptionStatus } from "@rustranked/database";
+import { removeAllRustRankedRoles } from "../services/role-sync.js";
 
 const WEB_URL = process.env.WEB_URL || "https://rustranked.com";
 
@@ -285,6 +287,45 @@ export const commands = [
         .setFooter({ text: "Your roles will sync automatically once complete!" });
 
       await interaction.reply({ embeds: [embed], ephemeral: true });
+    },
+  },
+
+  // /reset-all-roles command (Admin only)
+  {
+    data: new SlashCommandBuilder()
+      .setName("reset-all-roles")
+      .setDescription("Remove all RustRanked roles from everyone (Admin only)")
+      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+    async execute(interaction: ChatInputCommandInteraction) {
+      await interaction.deferReply({ ephemeral: true });
+
+      const guild = interaction.guild;
+      if (!guild) {
+        await interaction.editReply("This command can only be used in a server.");
+        return;
+      }
+
+      try {
+        const members = await guild.members.fetch();
+        let count = 0;
+
+        for (const [, member] of members) {
+          if (member.user.bot) continue;
+          await removeAllRustRankedRoles(member);
+          count++;
+        }
+
+        const embed = new EmbedBuilder()
+          .setColor(0x00ff00)
+          .setTitle("✅ Roles Reset")
+          .setDescription(`Removed RustRanked roles from ${count} members.`);
+
+        await interaction.editReply({ embeds: [embed] });
+      } catch (error) {
+        console.error("Failed to reset roles:", error);
+        await interaction.editReply("Failed to reset roles. Check bot permissions.");
+      }
     },
   },
 ];
