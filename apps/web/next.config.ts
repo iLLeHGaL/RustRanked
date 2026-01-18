@@ -14,6 +14,7 @@ const nextConfig: NextConfig = {
     ],
   },
   transpilePackages: ["@rustranked/database"],
+  serverExternalPackages: ["@prisma/client", "prisma"],
 };
 
 export default nextConfig;
