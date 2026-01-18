@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   const userId = session?.user?.id;
 
   const { searchParams } = new URL(request.url);
-  const serverType = searchParams.get("serverType") as ServerType | null;
+  const serverType = searchParams.get("serverType") as ServerTypeValue | null;
 
   const now = new Date();
 
