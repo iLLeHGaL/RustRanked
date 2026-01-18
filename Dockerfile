@@ -24,8 +24,11 @@ COPY packages/database ./packages/database
 # Build the discord bot
 RUN pnpm --filter discord-bot build
 
-# Expose API port
-EXPOSE 3001
+# Verify build output exists
+RUN ls -la /app/apps/discord-bot/dist/
+
+# Set working directory to the bot
+WORKDIR /app/apps/discord-bot
 
 # Start the bot
-CMD ["pnpm", "--filter", "discord-bot", "start"]
+CMD ["node", "dist/index.js"]
