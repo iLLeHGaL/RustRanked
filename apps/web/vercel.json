@@ -1,4 +1,0 @@
-{
-  "installCommand": "pnpm install && npx prisma generate --schema=../../packages/database/prisma/schema.prisma",
-  "buildCommand": "next build"
-}
