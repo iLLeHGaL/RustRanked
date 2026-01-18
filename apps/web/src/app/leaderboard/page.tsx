@@ -2,7 +2,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { prisma } from "@rustranked/database";
 import { getRankInfo } from "@/lib/elo";
-import { Trophy, Medal, Award, User, ArrowLeft } from "lucide-react";
+import { Trophy, Medal, Award, User } from "lucide-react";
+import { Navbar } from "@/components/navbar";
 
 export const revalidate = 60; // Revalidate every 60 seconds
 
@@ -29,28 +30,7 @@ export default async function LeaderboardPage() {
 
   return (
     <div className="min-h-screen bg-dark-950">
-      {/* Header */}
-      <header className="border-b border-zinc-800 bg-dark-950/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rust-600">
-              <span className="text-lg font-bold text-white">R</span>
-            </div>
-            <span className="text-xl font-bold text-white">RustRanked</span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/dashboard"
-              className="text-sm text-zinc-400 hover:text-white transition-colors"
-            >
-              Dashboard
-            </Link>
-            <Link href="/login" className="btn-primary">
-              Sign In
-            </Link>
-          </div>
-        </div>
-      </header>
+      <Navbar />
 
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8">
