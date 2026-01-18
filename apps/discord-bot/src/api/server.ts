@@ -11,7 +11,8 @@ import {
 } from "../services/notifications.js";
 
 const API_SECRET = process.env.BOT_API_SECRET;
-const API_PORT = parseInt(process.env.BOT_API_PORT || "3001", 10);
+// Railway provides PORT env var, fall back to BOT_API_PORT or 3001
+const API_PORT = parseInt(process.env.PORT || process.env.BOT_API_PORT || "3001", 10);
 
 interface WebhookPayload {
   event: string;
@@ -185,7 +186,8 @@ async function handleRequest(
 export function startApiServer(): void {
   const server = createServer(handleRequest);
 
-  server.listen(API_PORT, () => {
+  // Bind to 0.0.0.0 for Railway/Docker compatibility
+  server.listen(API_PORT, "0.0.0.0", () => {
     console.log(`📡 Bot API server listening on port ${API_PORT}`);
   });
 }
