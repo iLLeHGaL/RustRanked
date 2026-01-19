@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@rustranked/database";
+import { prisma, VerificationStatus } from "@rustranked/database";
 
 // POST - Submit a vote
 export async function POST(request: NextRequest) {
@@ -9,6 +9,19 @@ export async function POST(request: NextRequest) {
 
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Check if user is verified
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { verificationStatus: true },
+  });
+
+  if (user?.verificationStatus !== VerificationStatus.VERIFIED) {
+    return NextResponse.json(
+      { error: "You must verify your account to vote" },
+      { status: 403 }
+    );
   }
 
   try {

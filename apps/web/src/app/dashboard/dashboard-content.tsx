@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -17,15 +18,26 @@ import {
   XCircle,
   CreditCard,
   Gamepad2,
-  Trophy,
   Target,
   Skull,
-  TrendingUp,
+  Timer,
+  Pickaxe,
   ExternalLink,
   User,
 } from "lucide-react";
 import { Navbar } from "@/components/navbar";
-import { getKDRatio, getWinRate, formatElo } from "@/lib/utils";
+
+interface WipeStats {
+  kills: number;
+  deaths: number;
+  hoursPlayed: number;
+  resourcesGathered: number;
+}
+
+function getKDRatio(kills: number, deaths: number): string {
+  if (deaths === 0) return kills > 0 ? kills.toFixed(1) : "0.0";
+  return (kills / deaths).toFixed(2);
+}
 
 type UserWithSubscription = UserType & {
   subscription: Subscription | null;
@@ -36,10 +48,32 @@ export function DashboardContent({ user }: { user: UserWithSubscription }) {
   const error = searchParams.get("error");
   const success = searchParams.get("success");
 
+  const [wipeStats, setWipeStats] = useState<WipeStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+
   const isVerified = user.verificationStatus === VerificationStatus.VERIFIED;
   const hasActiveSubscription =
     user.subscription?.status === SubscriptionStatus.ACTIVE;
   const canPlay = isVerified && hasActiveSubscription;
+
+  useEffect(() => {
+    async function fetchWipeStats() {
+      if (!user.steamId) {
+        setStatsLoading(false);
+        return;
+      }
+      try {
+        const res = await fetch("/api/stats/current");
+        const data = await res.json();
+        setWipeStats(data.stats);
+      } catch (error) {
+        console.error("Failed to fetch wipe stats:", error);
+      } finally {
+        setStatsLoading(false);
+      }
+    }
+    fetchWipeStats();
+  }, [user.steamId]);
 
   return (
     <div className="min-h-screen bg-dark-950">
@@ -106,10 +140,6 @@ export function DashboardContent({ user }: { user: UserWithSubscription }) {
                     {user.steamName}
                   </span>
                 )}
-                <span className="flex items-center gap-1">
-                  <Trophy className="h-4 w-4 text-rust-500" />
-                  {formatElo(user.elo)} ELO
-                </span>
               </div>
             </div>
             <div className="flex gap-3">
@@ -209,11 +239,15 @@ export function DashboardContent({ user }: { user: UserWithSubscription }) {
                   : "Inactive"
             }
             action={
-              !hasActiveSubscription ? (
+              hasActiveSubscription ? (
+                <Link href="/billing" className="btn-secondary text-sm mt-4">
+                  Manage Subscription
+                </Link>
+              ) : (
                 <Link href="/subscribe" className="btn-secondary text-sm mt-4">
                   Subscribe Now
                 </Link>
-              ) : null
+              )
             }
           >
             {hasActiveSubscription && user.subscription ? (
@@ -231,34 +265,54 @@ export function DashboardContent({ user }: { user: UserWithSubscription }) {
           </StatusCard>
         </div>
 
-        {/* Stats Grid */}
-        <h2 className="text-xl font-bold text-white mb-4">Your Stats</h2>
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-4 mb-8">
-          <StatCard
-            icon={Trophy}
-            label="ELO Rating"
-            value={formatElo(user.elo)}
-            subtext={`Peak: ${formatElo(user.peakElo)}`}
-          />
-          <StatCard
-            icon={Target}
-            label="K/D Ratio"
-            value={getKDRatio(user.kills, user.deaths)}
-            subtext={`${user.kills} kills / ${user.deaths} deaths`}
-          />
-          <StatCard
-            icon={TrendingUp}
-            label="Win Rate"
-            value={getWinRate(user.wins, user.losses)}
-            subtext={`${user.wins}W - ${user.losses}L`}
-          />
-          <StatCard
-            icon={Skull}
-            label="Matches"
-            value={user.matchesPlayed.toString()}
-            subtext="Total played"
-          />
-        </div>
+        {/* Wipe Stats Grid */}
+        <h2 className="text-xl font-bold text-white mb-4">Current Wipe Stats</h2>
+        {statsLoading ? (
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-4 mb-8">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="card animate-pulse">
+                <div className="h-4 bg-zinc-800 rounded w-20 mb-2" />
+                <div className="h-8 bg-zinc-800 rounded w-16 mb-1" />
+                <div className="h-3 bg-zinc-800 rounded w-24" />
+              </div>
+            ))}
+          </div>
+        ) : !user.steamId ? (
+          <div className="card mb-8 p-6 text-center">
+            <p className="text-zinc-400">Link your Steam account to see your wipe stats</p>
+          </div>
+        ) : !wipeStats ? (
+          <div className="card mb-8 p-6 text-center">
+            <p className="text-zinc-400">No stats recorded for the current wipe yet</p>
+          </div>
+        ) : (
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-4 mb-8">
+            <StatCard
+              icon={Target}
+              label="Kills"
+              value={wipeStats.kills.toLocaleString()}
+              subtext={`K/D: ${getKDRatio(wipeStats.kills, wipeStats.deaths)}`}
+            />
+            <StatCard
+              icon={Skull}
+              label="Deaths"
+              value={wipeStats.deaths.toLocaleString()}
+              subtext="This wipe"
+            />
+            <StatCard
+              icon={Timer}
+              label="Hours Played"
+              value={wipeStats.hoursPlayed.toFixed(1)}
+              subtext="This wipe"
+            />
+            <StatCard
+              icon={Pickaxe}
+              label="Resources"
+              value={wipeStats.resourcesGathered.toLocaleString()}
+              subtext="Gathered"
+            />
+          </div>
+        )}
 
         {/* Access Status */}
         {canPlay ? (

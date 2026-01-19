@@ -10,7 +10,6 @@ import {
   CreditCard,
   HelpCircle,
   LogOut,
-  Map,
 } from "lucide-react";
 
 interface UserMenuProps {
@@ -99,14 +98,6 @@ export function UserMenu({ user }: UserMenuProps) {
             >
               <LayoutDashboard className="h-4 w-4" />
               Dashboard
-            </Link>
-            <Link
-              href="/map-voting"
-              onClick={() => setIsOpen(false)}
-              className="flex items-center gap-3 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
-            >
-              <Map className="h-4 w-4" />
-              Map Voting
             </Link>
             <Link
               href="/billing"

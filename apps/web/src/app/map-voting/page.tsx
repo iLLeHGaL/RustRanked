@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { Navbar } from "@/components/navbar";
-import { Map, Check, Clock, Vote } from "lucide-react";
+import { Map, Check, Clock, Vote, Shield } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 
 type ServerType = "US_MAIN" | "US_MONDAYS" | "EU_MAIN" | "EU_MONDAYS";
 
@@ -43,10 +44,28 @@ export default function MapVotingPage() {
   const [votingPeriods, setVotingPeriods] = useState<VotingPeriod[]>([]);
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState<string | null>(null);
+  const [isVerified, setIsVerified] = useState<boolean | null>(null);
 
   useEffect(() => {
     fetchVotingPeriods();
   }, []);
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      fetchVerificationStatus();
+    }
+  }, [status]);
+
+  async function fetchVerificationStatus() {
+    try {
+      const res = await fetch("/api/user/verification-status");
+      const data = await res.json();
+      setIsVerified(data.isVerified);
+    } catch (error) {
+      console.error("Failed to fetch verification status:", error);
+      setIsVerified(false);
+    }
+  }
 
   async function fetchVotingPeriods() {
     try {
@@ -235,26 +254,36 @@ export default function MapVotingPage() {
 
                       {/* Vote Button */}
                       {isAuthenticated ? (
-                        <button
-                          onClick={() => handleVote(currentPeriod.id, mapOption.id)}
-                          disabled={isVoting || isUserVote}
-                          className={`w-full py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-                            isUserVote
-                              ? "bg-rust-600/20 text-rust-400 cursor-default"
-                              : "bg-rust-600 text-white hover:bg-rust-500 disabled:opacity-50"
-                          }`}
-                        >
-                          {isVoting ? (
-                            <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          ) : isUserVote ? (
-                            <>
-                              <Check className="h-4 w-4" />
-                              Voted
-                            </>
-                          ) : (
-                            "Vote for this map"
-                          )}
-                        </button>
+                        isVerified ? (
+                          <button
+                            onClick={() => handleVote(currentPeriod.id, mapOption.id)}
+                            disabled={isVoting || isUserVote}
+                            className={`w-full py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                              isUserVote
+                                ? "bg-rust-600/20 text-rust-400 cursor-default"
+                                : "bg-rust-600 text-white hover:bg-rust-500 disabled:opacity-50"
+                            }`}
+                          >
+                            {isVoting ? (
+                              <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : isUserVote ? (
+                              <>
+                                <Check className="h-4 w-4" />
+                                Voted
+                              </>
+                            ) : (
+                              "Vote for this map"
+                            )}
+                          </button>
+                        ) : (
+                          <Link
+                            href="/verify"
+                            className="w-full py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
+                          >
+                            <Shield className="h-4 w-4" />
+                            Verify to Vote
+                          </Link>
+                        )
                       ) : (
                         <p className="text-center text-sm text-zinc-500">
                           Sign in to vote

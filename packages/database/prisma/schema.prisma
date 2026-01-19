@@ -308,3 +308,31 @@ model Vote {
   @@index([votingPeriodId])
   @@index([mapOptionId])
 }
+
+// ============================================
+// WIPE STATS (from game server plugin)
+// ============================================
+
+model WipeStats {
+  id              String     @id @default(cuid())
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  // Player identification
+  steamId         String
+
+  // Server and wipe identification
+  serverType      ServerType
+  wipeId          String     // Identifier for the wipe (e.g., "2024-01-15")
+
+  // Stats
+  kills             Int      @default(0)
+  deaths            Int      @default(0)
+  hoursPlayed       Float    @default(0)
+  resourcesGathered Int      @default(0)
+
+  // Each player has one stats entry per server per wipe
+  @@unique([steamId, serverType, wipeId])
+  @@index([steamId])
+  @@index([serverType, wipeId])
+}
