@@ -26,6 +26,18 @@ export function Navbar() {
             Leaderboard
           </Link>
           <Link
+            href="/rules"
+            className="text-sm text-zinc-400 hover:text-white transition-colors"
+          >
+            Rules
+          </Link>
+          <Link
+            href="/faq"
+            className="text-sm text-zinc-400 hover:text-white transition-colors"
+          >
+            FAQ
+          </Link>
+          <Link
             href="/map-voting"
             className="text-sm text-zinc-400 hover:text-white transition-colors"
           >

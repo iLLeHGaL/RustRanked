@@ -38,18 +38,8 @@ model User {
   // Stripe
   stripeCustomerId String? @unique
 
-  // Stats
-  elo           Int      @default(1000)
-  peakElo       Int      @default(1000)
-  kills         Int      @default(0)
-  deaths        Int      @default(0)
-  wins          Int      @default(0)
-  losses        Int      @default(0)
-  matchesPlayed Int      @default(0)
-
   // Relations
   subscription  Subscription?
-  matchHistory  MatchPlayer[]
   sessions      Session[]
   bans          Ban[]
   votes         Vote[]
@@ -59,7 +49,6 @@ model User {
 
   @@index([discordId])
   @@index([steamId])
-  @@index([elo])
 }
 
 model Session {
@@ -96,57 +85,6 @@ model Subscription {
 }
 
 // ============================================
-// MATCHES & STATS
-// ============================================
-
-model Match {
-  id          String      @id @default(cuid())
-  createdAt   DateTime    @default(now())
-  endedAt     DateTime?
-
-  // Server info
-  serverId    String
-  server      GameServer  @relation(fields: [serverId], references: [id])
-
-  // Match details
-  status      MatchStatus @default(IN_PROGRESS)
-  winningTeam Team?
-  duration    Int?        // seconds
-
-  // Participants
-  players     MatchPlayer[]
-
-  @@index([serverId])
-  @@index([status])
-}
-
-model MatchPlayer {
-  id        String   @id @default(cuid())
-
-  matchId   String
-  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
-
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-
-  // Team assignment
-  team      Team
-
-  // Performance
-  kills     Int      @default(0)
-  deaths    Int      @default(0)
-  assists   Int      @default(0)
-
-  // ELO change from this match
-  eloChange Int      @default(0)
-  eloBefore Int
-  eloAfter  Int
-
-  @@unique([matchId, userId])
-  @@index([userId])
-}
-
-// ============================================
 // GAME SERVERS
 // ============================================
 
@@ -169,9 +107,6 @@ model GameServer {
   // Status
   isActive    Boolean  @default(true)
   lastSeen    DateTime?
-
-  // Relations
-  matches     Match[]
 
   @@unique([ip, port])
 }
@@ -213,17 +148,6 @@ enum SubscriptionStatus {
   CANCELED
   INCOMPLETE
   TRIALING
-}
-
-enum MatchStatus {
-  IN_PROGRESS
-  COMPLETED
-  CANCELED
-}
-
-enum Team {
-  TEAM_A
-  TEAM_B
 }
 
 enum ServerType {
@@ -328,11 +252,28 @@ model WipeStats {
   serverType      ServerType
   wipeId          String     // Identifier for the wipe (e.g., "2024-01-15")
 
-  // Stats
+  // PvP
   kills             Int      @default(0)
   deaths            Int      @default(0)
+  headshots         Int      @default(0)
+  bulletsFired      Int      @default(0)
+  bulletsHit        Int      @default(0)
+  arrowsFired       Int      @default(0)
+  arrowsHit         Int      @default(0)
+
+  // Raiding
+  rocketsLaunched   Int      @default(0)
+  explosivesUsed    Int      @default(0)   // C4 + satchels
+
+  // Farming
+  woodGathered      Int      @default(0)
+  stoneGathered     Int      @default(0)
+  metalOreGathered  Int      @default(0)
+  sulfurOreGathered Int      @default(0)
+
+  // General
   hoursPlayed       Float    @default(0)
-  resourcesGathered Int      @default(0)
+  resourcesGathered Int      @default(0)   // total
 
   // Each player has one stats entry per server per wipe
   @@unique([steamId, serverType, wipeId])

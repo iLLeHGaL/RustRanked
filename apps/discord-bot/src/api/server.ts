@@ -6,7 +6,6 @@ import {
   sendNotification,
   createNewSubscriberEmbed,
   createVerifiedEmbed,
-  createRankUpEmbed,
   createNewPlayerEmbed,
   createBanEvasionEmbed,
   createDuplicateIdentityEmbed,
@@ -147,23 +146,6 @@ async function handleRequest(
         await sendNotification(
           createVerifiedEmbed(user.discordName, user.discordAvatar)
         );
-        break;
-
-      case "rank.changed":
-        if (member) {
-          await syncUserRoles(member, user);
-        }
-        if (data?.oldRank && data?.newRank) {
-          await sendNotification(
-            createRankUpEmbed(
-              user.discordName,
-              user.discordAvatar,
-              data.oldRank as string,
-              data.newRank as string,
-              user.elo
-            )
-          );
-        }
         break;
 
       case "sync.roles":

@@ -30,9 +30,6 @@ export async function GET(request: NextRequest) {
       isActive: true,
       lastSeen: true,
       createdAt: true,
-      _count: {
-        select: { matches: true },
-      },
     },
   });
 

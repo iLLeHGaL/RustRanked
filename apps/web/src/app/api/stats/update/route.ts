@@ -11,7 +11,7 @@ const ServerType = {
 
 type ServerTypeValue = (typeof ServerType)[keyof typeof ServerType];
 
-// POST - Update player wipe stats (called by game server plugin)
+// POST - Update single player wipe stats (called by game server plugin)
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -22,6 +22,17 @@ export async function POST(request: NextRequest) {
       wipeId,
       kills,
       deaths,
+      headshots,
+      bulletsFired,
+      bulletsHit,
+      arrowsFired,
+      arrowsHit,
+      rocketsLaunched,
+      explosivesUsed,
+      woodGathered,
+      stoneGathered,
+      metalOreGathered,
+      sulfurOreGathered,
       hoursPlayed,
       resourcesGathered,
     } = body;
@@ -60,6 +71,17 @@ export async function POST(request: NextRequest) {
       update: {
         kills: kills ?? undefined,
         deaths: deaths ?? undefined,
+        headshots: headshots ?? undefined,
+        bulletsFired: bulletsFired ?? undefined,
+        bulletsHit: bulletsHit ?? undefined,
+        arrowsFired: arrowsFired ?? undefined,
+        arrowsHit: arrowsHit ?? undefined,
+        rocketsLaunched: rocketsLaunched ?? undefined,
+        explosivesUsed: explosivesUsed ?? undefined,
+        woodGathered: woodGathered ?? undefined,
+        stoneGathered: stoneGathered ?? undefined,
+        metalOreGathered: metalOreGathered ?? undefined,
+        sulfurOreGathered: sulfurOreGathered ?? undefined,
         hoursPlayed: hoursPlayed ?? undefined,
         resourcesGathered: resourcesGathered ?? undefined,
       },
@@ -69,6 +91,17 @@ export async function POST(request: NextRequest) {
         wipeId,
         kills: kills ?? 0,
         deaths: deaths ?? 0,
+        headshots: headshots ?? 0,
+        bulletsFired: bulletsFired ?? 0,
+        bulletsHit: bulletsHit ?? 0,
+        arrowsFired: arrowsFired ?? 0,
+        arrowsHit: arrowsHit ?? 0,
+        rocketsLaunched: rocketsLaunched ?? 0,
+        explosivesUsed: explosivesUsed ?? 0,
+        woodGathered: woodGathered ?? 0,
+        stoneGathered: stoneGathered ?? 0,
+        metalOreGathered: metalOreGathered ?? 0,
+        sulfurOreGathered: sulfurOreGathered ?? 0,
         hoursPlayed: hoursPlayed ?? 0,
         resourcesGathered: resourcesGathered ?? 0,
       },
@@ -84,7 +117,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// POST batch update - Update multiple players at once
+// PUT - Batch update multiple players at once
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
@@ -118,6 +151,17 @@ export async function PUT(request: NextRequest) {
         steamId: string;
         kills?: number;
         deaths?: number;
+        headshots?: number;
+        bulletsFired?: number;
+        bulletsHit?: number;
+        arrowsFired?: number;
+        arrowsHit?: number;
+        rocketsLaunched?: number;
+        explosivesUsed?: number;
+        woodGathered?: number;
+        stoneGathered?: number;
+        metalOreGathered?: number;
+        sulfurOreGathered?: number;
         hoursPlayed?: number;
         resourcesGathered?: number;
       }) => {
@@ -134,6 +178,17 @@ export async function PUT(request: NextRequest) {
           update: {
             kills: player.kills ?? undefined,
             deaths: player.deaths ?? undefined,
+            headshots: player.headshots ?? undefined,
+            bulletsFired: player.bulletsFired ?? undefined,
+            bulletsHit: player.bulletsHit ?? undefined,
+            arrowsFired: player.arrowsFired ?? undefined,
+            arrowsHit: player.arrowsHit ?? undefined,
+            rocketsLaunched: player.rocketsLaunched ?? undefined,
+            explosivesUsed: player.explosivesUsed ?? undefined,
+            woodGathered: player.woodGathered ?? undefined,
+            stoneGathered: player.stoneGathered ?? undefined,
+            metalOreGathered: player.metalOreGathered ?? undefined,
+            sulfurOreGathered: player.sulfurOreGathered ?? undefined,
             hoursPlayed: player.hoursPlayed ?? undefined,
             resourcesGathered: player.resourcesGathered ?? undefined,
           },
@@ -143,6 +198,17 @@ export async function PUT(request: NextRequest) {
             wipeId,
             kills: player.kills ?? 0,
             deaths: player.deaths ?? 0,
+            headshots: player.headshots ?? 0,
+            bulletsFired: player.bulletsFired ?? 0,
+            bulletsHit: player.bulletsHit ?? 0,
+            arrowsFired: player.arrowsFired ?? 0,
+            arrowsHit: player.arrowsHit ?? 0,
+            rocketsLaunched: player.rocketsLaunched ?? 0,
+            explosivesUsed: player.explosivesUsed ?? 0,
+            woodGathered: player.woodGathered ?? 0,
+            stoneGathered: player.stoneGathered ?? 0,
+            metalOreGathered: player.metalOreGathered ?? 0,
+            sulfurOreGathered: player.sulfurOreGathered ?? 0,
             hoursPlayed: player.hoursPlayed ?? 0,
             resourcesGathered: player.resourcesGathered ?? 0,
           },

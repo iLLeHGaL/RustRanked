@@ -13,6 +13,24 @@ const ServerType = {
 
 type ServerTypeValue = (typeof ServerType)[keyof typeof ServerType];
 
+const EMPTY_STATS = {
+  kills: 0,
+  deaths: 0,
+  headshots: 0,
+  bulletsFired: 0,
+  bulletsHit: 0,
+  arrowsFired: 0,
+  arrowsHit: 0,
+  rocketsLaunched: 0,
+  explosivesUsed: 0,
+  woodGathered: 0,
+  stoneGathered: 0,
+  metalOreGathered: 0,
+  sulfurOreGathered: 0,
+  hoursPlayed: 0,
+  resourcesGathered: 0,
+};
+
 // GET - Get current wipe stats for logged-in user
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -50,7 +68,7 @@ export async function GET(request: NextRequest) {
   const stats = await prisma.wipeStats.findMany({
     where: whereClause,
     orderBy: { updatedAt: "desc" },
-    take: serverType ? 1 : 4, // Get latest for each server
+    take: serverType ? 1 : 4,
   });
 
   // If getting all servers, group by server and get latest for each
@@ -67,10 +85,21 @@ export async function GET(request: NextRequest) {
       (acc, stat) => ({
         kills: acc.kills + stat.kills,
         deaths: acc.deaths + stat.deaths,
+        headshots: acc.headshots + stat.headshots,
+        bulletsFired: acc.bulletsFired + stat.bulletsFired,
+        bulletsHit: acc.bulletsHit + stat.bulletsHit,
+        arrowsFired: acc.arrowsFired + stat.arrowsFired,
+        arrowsHit: acc.arrowsHit + stat.arrowsHit,
+        rocketsLaunched: acc.rocketsLaunched + stat.rocketsLaunched,
+        explosivesUsed: acc.explosivesUsed + stat.explosivesUsed,
+        woodGathered: acc.woodGathered + stat.woodGathered,
+        stoneGathered: acc.stoneGathered + stat.stoneGathered,
+        metalOreGathered: acc.metalOreGathered + stat.metalOreGathered,
+        sulfurOreGathered: acc.sulfurOreGathered + stat.sulfurOreGathered,
         hoursPlayed: acc.hoursPlayed + stat.hoursPlayed,
         resourcesGathered: acc.resourcesGathered + stat.resourcesGathered,
       }),
-      { kills: 0, deaths: 0, hoursPlayed: 0, resourcesGathered: 0 }
+      { ...EMPTY_STATS }
     );
 
     return NextResponse.json({
@@ -82,15 +111,24 @@ export async function GET(request: NextRequest) {
   // Return single server stats
   const stat = stats[0];
   if (!stat) {
-    return NextResponse.json({
-      stats: { kills: 0, deaths: 0, hoursPlayed: 0, resourcesGathered: 0 },
-    });
+    return NextResponse.json({ stats: { ...EMPTY_STATS } });
   }
 
   return NextResponse.json({
     stats: {
       kills: stat.kills,
       deaths: stat.deaths,
+      headshots: stat.headshots,
+      bulletsFired: stat.bulletsFired,
+      bulletsHit: stat.bulletsHit,
+      arrowsFired: stat.arrowsFired,
+      arrowsHit: stat.arrowsHit,
+      rocketsLaunched: stat.rocketsLaunched,
+      explosivesUsed: stat.explosivesUsed,
+      woodGathered: stat.woodGathered,
+      stoneGathered: stat.stoneGathered,
+      metalOreGathered: stat.metalOreGathered,
+      sulfurOreGathered: stat.sulfurOreGathered,
       hoursPlayed: stat.hoursPlayed,
       resourcesGathered: stat.resourcesGathered,
       wipeId: stat.wipeId,

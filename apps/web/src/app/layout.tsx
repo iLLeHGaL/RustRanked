@@ -11,8 +11,8 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "RustRanked - Competitive Rust Gaming",
   description:
-    "The premier competitive platform for Rust. Verified players, ranked matches, and fair play.",
-  keywords: ["Rust", "competitive", "ranked", "FACEIT", "gaming", "esports"],
+    "The premier Rust server platform. Verified players, active moderation, and fair play.",
+  keywords: ["Rust", "competitive", "verified", "anti-cheat", "moderated", "gaming"],
 };
 
 export default function RootLayout({

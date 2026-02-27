@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Shield, Trophy, Users, Zap } from "lucide-react";
+import { Shield, Fingerprint, ShieldCheck, Zap } from "lucide-react";
 import { Navbar, HeroButtons } from "@/components/navbar";
 
 export default function HomePage() {
@@ -25,8 +25,8 @@ export default function HomePage() {
               </h1>
               <p className="mt-6 text-lg leading-8 text-zinc-400 max-w-2xl mx-auto">
                 Join the only Rust platform with verified players. Government ID
-                verification, skill-based matchmaking, and a community that
-                plays fair.
+                verification, active moderation, and a community that plays
+                fair.
               </p>
               <HeroButtons />
             </div>
@@ -46,19 +46,19 @@ export default function HomePage() {
                 description="Every player is verified with government ID. One account per person, no smurfs, no cheaters."
               />
               <FeatureCard
-                icon={Trophy}
-                title="ELO Rankings"
-                description="Skill-based matchmaking with a proper ELO system. Climb the ranks and prove yourself."
+                icon={Fingerprint}
+                title="Anti-Cheat"
+                description="Multi-layered anti-cheat combining EAC, server-side detection, and identity verification to keep games fair."
               />
               <FeatureCard
-                icon={Users}
-                title="Fair Matches"
-                description="Play against players of similar skill. No getting stomped by veterans or smurfs."
+                icon={ShieldCheck}
+                title="Active Moderation"
+                description="Dedicated admins actively monitor servers and respond to reports. Cheaters are removed swiftly."
               />
               <FeatureCard
                 icon={Zap}
                 title="Discord Integration"
-                description="Link your Discord for instant role sync, match notifications, and community features."
+                description="Link your Discord for instant role sync, notifications, and community features."
               />
             </div>
           </div>
@@ -72,8 +72,8 @@ export default function HomePage() {
             </h2>
             <p className="text-zinc-400 mb-8 max-w-xl mx-auto">
               Join hundreds of verified players who are tired of cheaters.
-              Monthly subscription includes server access, ranked matches, and
-              exclusive Discord perks.
+              Monthly subscription includes server access, active moderation,
+              and exclusive Discord perks.
             </p>
             <Link href="/dashboard" className="btn-primary text-base px-8 py-3">
               Get Started

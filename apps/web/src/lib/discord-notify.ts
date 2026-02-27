@@ -57,13 +57,6 @@ export const discordNotify = {
   verificationCompleted: (userId: string) =>
     notifyDiscordBot({ event: "verification.completed", userId }),
 
-  rankChanged: (userId: string, oldRank: string, newRank: string) =>
-    notifyDiscordBot({
-      event: "rank.changed",
-      userId,
-      data: { oldRank, newRank },
-    }),
-
   syncRoles: (userId: string) =>
     notifyDiscordBot({ event: "sync.roles", userId }),
 

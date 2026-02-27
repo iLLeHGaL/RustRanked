@@ -8,7 +8,7 @@ using System.Text;
 
 namespace Oxide.Plugins
 {
-    [Info("RustRanked", "RustRanked", "1.0.0")]
+    [Info("RustRanked", "RustRanked", "2.0.0")]
     [Description("Integration plugin for RustRanked competitive platform")]
     public class RustRanked : CovalencePlugin
     {
@@ -24,6 +24,15 @@ namespace Oxide.Plugins
             [JsonProperty("API Key")]
             public string ApiKey { get; set; } = "YOUR_API_KEY_HERE";
 
+            [JsonProperty("Stats API Key")]
+            public string StatsApiKey { get; set; } = "YOUR_STATS_API_KEY_HERE";
+
+            [JsonProperty("Server Type")]
+            public string ServerType { get; set; } = "US_MAIN";
+
+            [JsonProperty("Wipe ID")]
+            public string WipeId { get; set; } = "";
+
             [JsonProperty("Kick Unverified Players")]
             public bool KickUnverified { get; set; } = true;
 
@@ -32,6 +41,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("Check Interval (seconds)")]
             public float CheckInterval { get; set; } = 30f;
+
+            [JsonProperty("Stats Report Interval (seconds)")]
+            public float StatsReportInterval { get; set; } = 300f;
         }
 
         protected override void LoadDefaultConfig()
@@ -62,21 +74,32 @@ namespace Oxide.Plugins
         #region Data Storage
 
         private Dictionary<string, PlayerData> verifiedPlayers = new Dictionary<string, PlayerData>();
+        private Dictionary<string, PlayerStats> playerStats = new Dictionary<string, PlayerStats>();
 
         private class PlayerData
         {
             public string UserId { get; set; }
             public string DiscordName { get; set; }
             public string SteamName { get; set; }
-            public int Elo { get; set; }
-            public string Rank { get; set; }
-            public string RankName { get; set; }
-            public string RankColor { get; set; }
+            public DateTime VerifiedAt { get; set; }
+        }
+
+        private class PlayerStats
+        {
             public int Kills { get; set; }
             public int Deaths { get; set; }
-            public int Wins { get; set; }
-            public int Losses { get; set; }
-            public DateTime VerifiedAt { get; set; }
+            public int Headshots { get; set; }
+            public int BulletsFired { get; set; }
+            public int BulletsHit { get; set; }
+            public int ArrowsFired { get; set; }
+            public int ArrowsHit { get; set; }
+            public int RocketsLaunched { get; set; }
+            public int ExplosivesUsed { get; set; }
+            public int WoodGathered { get; set; }
+            public int StoneGathered { get; set; }
+            public int MetalOreGathered { get; set; }
+            public int SulfurOreGathered { get; set; }
+            public bool Dirty { get; set; }
         }
 
         #endregion
@@ -95,6 +118,9 @@ namespace Oxide.Plugins
             {
                 VerifyPlayer(player);
             }
+
+            // Start periodic stats reporting
+            timer.Every(config.StatsReportInterval, ReportAllStats);
         }
 
         private void OnUserConnected(IPlayer player)
@@ -104,7 +130,13 @@ namespace Oxide.Plugins
 
         private void OnUserDisconnected(IPlayer player)
         {
+            // Report stats before removing player
+            if (playerStats.ContainsKey(player.Id) && playerStats[player.Id].Dirty)
+            {
+                ReportPlayerStats(player.Id);
+            }
             verifiedPlayers.Remove(player.Id);
+            playerStats.Remove(player.Id);
         }
 
         private void OnPlayerDeath(BasePlayer victim, HitInfo info)
@@ -114,8 +146,203 @@ namespace Oxide.Plugins
             var attacker = info?.InitiatorPlayer;
             if (attacker == null || attacker == victim) return;
 
-            // Report kill/death to API
-            ReportKill(attacker.UserIDString, victim.UserIDString);
+            // Track kill for attacker
+            var attackerStats = GetOrCreateStats(attacker.UserIDString);
+            attackerStats.Kills++;
+            if (info.isHeadshot)
+            {
+                attackerStats.Headshots++;
+            }
+            attackerStats.Dirty = true;
+
+            // Track death for victim
+            var victimStats = GetOrCreateStats(victim.UserIDString);
+            victimStats.Deaths++;
+            victimStats.Dirty = true;
+        }
+
+        private void OnWeaponFired(BaseProjectile projectile, BasePlayer player, ItemModProjectile mod, ProjectileShoot projectiles)
+        {
+            if (player == null) return;
+
+            var stats = GetOrCreateStats(player.UserIDString);
+            stats.BulletsFired += projectiles.projectiles.Count;
+            stats.Dirty = true;
+        }
+
+        private void OnRocketLaunched(BasePlayer player, BaseEntity entity)
+        {
+            if (player == null) return;
+
+            var stats = GetOrCreateStats(player.UserIDString);
+            stats.RocketsLaunched++;
+            stats.Dirty = true;
+        }
+
+        private void OnExplosiveThrown(BasePlayer player, BaseEntity entity, ThrownWeapon item)
+        {
+            if (player == null) return;
+
+            var stats = GetOrCreateStats(player.UserIDString);
+            stats.ExplosivesUsed++;
+            stats.Dirty = true;
+        }
+
+        private void OnDispenserGather(ResourceDispenser dispenser, BaseEntity entity, Item item)
+        {
+            var player = entity as BasePlayer;
+            if (player == null || item == null) return;
+
+            var stats = GetOrCreateStats(player.UserIDString);
+
+            switch (item.info.shortname)
+            {
+                case "wood":
+                    stats.WoodGathered += item.amount;
+                    break;
+                case "stones":
+                    stats.StoneGathered += item.amount;
+                    break;
+                case "metal.ore":
+                    stats.MetalOreGathered += item.amount;
+                    break;
+                case "sulfur.ore":
+                    stats.SulfurOreGathered += item.amount;
+                    break;
+            }
+            stats.Dirty = true;
+        }
+
+        private void OnBowFired(BowWeapon bow, BasePlayer player, ItemModProjectile mod, ProjectileShoot projectiles)
+        {
+            if (player == null) return;
+
+            var stats = GetOrCreateStats(player.UserIDString);
+            stats.ArrowsFired += projectiles.projectiles.Count;
+            stats.Dirty = true;
+        }
+
+        #endregion
+
+        #region Stats Helpers
+
+        private PlayerStats GetOrCreateStats(string steamId)
+        {
+            if (!playerStats.ContainsKey(steamId))
+            {
+                playerStats[steamId] = new PlayerStats();
+            }
+            return playerStats[steamId];
+        }
+
+        private void ReportAllStats()
+        {
+            var batch = new List<object>();
+
+            foreach (var kvp in playerStats)
+            {
+                if (!kvp.Value.Dirty) continue;
+
+                batch.Add(new
+                {
+                    steamId = kvp.Key,
+                    kills = kvp.Value.Kills,
+                    deaths = kvp.Value.Deaths,
+                    headshots = kvp.Value.Headshots,
+                    bulletsFired = kvp.Value.BulletsFired,
+                    bulletsHit = kvp.Value.BulletsHit,
+                    arrowsFired = kvp.Value.ArrowsFired,
+                    arrowsHit = kvp.Value.ArrowsHit,
+                    rocketsLaunched = kvp.Value.RocketsLaunched,
+                    explosivesUsed = kvp.Value.ExplosivesUsed,
+                    woodGathered = kvp.Value.WoodGathered,
+                    stoneGathered = kvp.Value.StoneGathered,
+                    metalOreGathered = kvp.Value.MetalOreGathered,
+                    sulfurOreGathered = kvp.Value.SulfurOreGathered
+                });
+
+                kvp.Value.Dirty = false;
+            }
+
+            if (batch.Count == 0) return;
+
+            var headers = new Dictionary<string, string>
+            {
+                { "Content-Type", "application/json" }
+            };
+
+            var body = JsonConvert.SerializeObject(new
+            {
+                apiKey = config.StatsApiKey,
+                wipeId = config.WipeId,
+                serverType = config.ServerType,
+                players = batch
+            });
+
+            webrequest.Enqueue(
+                $"{config.ApiUrl}/stats/update",
+                body,
+                (code, response) =>
+                {
+                    if (code != 200)
+                    {
+                        PrintWarning($"Failed to report stats: HTTP {code}");
+                    }
+                },
+                this,
+                RequestMethod.PUT,
+                headers
+            );
+        }
+
+        private void ReportPlayerStats(string steamId)
+        {
+            if (!playerStats.ContainsKey(steamId) || !playerStats[steamId].Dirty) return;
+
+            var stats = playerStats[steamId];
+
+            var headers = new Dictionary<string, string>
+            {
+                { "Content-Type", "application/json" }
+            };
+
+            var body = JsonConvert.SerializeObject(new
+            {
+                apiKey = config.StatsApiKey,
+                steamId,
+                serverType = config.ServerType,
+                wipeId = config.WipeId,
+                kills = stats.Kills,
+                deaths = stats.Deaths,
+                headshots = stats.Headshots,
+                bulletsFired = stats.BulletsFired,
+                bulletsHit = stats.BulletsHit,
+                arrowsFired = stats.ArrowsFired,
+                arrowsHit = stats.ArrowsHit,
+                rocketsLaunched = stats.RocketsLaunched,
+                explosivesUsed = stats.ExplosivesUsed,
+                woodGathered = stats.WoodGathered,
+                stoneGathered = stats.StoneGathered,
+                metalOreGathered = stats.MetalOreGathered,
+                sulfurOreGathered = stats.SulfurOreGathered
+            });
+
+            webrequest.Enqueue(
+                $"{config.ApiUrl}/stats/update",
+                body,
+                (code, response) =>
+                {
+                    if (code != 200)
+                    {
+                        PrintWarning($"Failed to report stats for {steamId}: HTTP {code}");
+                    }
+                },
+                this,
+                RequestMethod.POST,
+                headers
+            );
+
+            stats.Dirty = false;
         }
 
         #endregion
@@ -180,46 +407,20 @@ namespace Oxide.Plugins
                     UserId = result.Player.Id,
                     DiscordName = result.Player.DiscordName,
                     SteamName = result.Player.SteamName,
-                    Elo = result.Player.Elo,
-                    Rank = result.Player.Rank,
-                    RankName = result.Player.RankName,
-                    RankColor = result.Player.RankColor,
-                    Kills = result.Player.Kills,
-                    Deaths = result.Player.Deaths,
-                    Wins = result.Player.Wins,
-                    Losses = result.Player.Losses,
                     VerifiedAt = DateTime.UtcNow
                 };
 
-                Puts($"Player {player.Name} verified: {result.Player.RankName} ({result.Player.Elo} ELO)");
+                Puts($"Player {player.Name} verified successfully");
 
                 if (config.ShowWelcome)
                 {
-                    player.Message($"<color=#cd4832>[RustRanked]</color> Welcome, <color={result.Player.RankColor}>{result.Player.RankName}</color> {player.Name}!");
-                    player.Message($"<color=#cd4832>[RustRanked]</color> Your ELO: <color=#ffffff>{result.Player.Elo}</color> | K/D: {result.Player.Kills}/{result.Player.Deaths}");
+                    player.Message($"<color=#cd4832>[RustRanked]</color> Welcome, {player.Name}! You are verified and ready to play.");
                 }
             }
             catch (Exception ex)
             {
                 PrintError($"Error parsing verify response: {ex.Message}");
             }
-        }
-
-        private void ReportKill(string killerSteamId, string victimSteamId)
-        {
-            var headers = new Dictionary<string, string>
-            {
-                { "Authorization", $"Bearer {config.ApiKey}" },
-                { "Content-Type", "application/json" }
-            };
-
-            // Report kill for attacker
-            var killerBody = JsonConvert.SerializeObject(new { steamId = killerSteamId, kills = 1, deaths = 0 });
-            webrequest.Enqueue($"{config.ApiUrl}/server/report-stats", killerBody, (code, response) => { }, this, RequestMethod.POST, headers);
-
-            // Report death for victim
-            var victimBody = JsonConvert.SerializeObject(new { steamId = victimSteamId, kills = 0, deaths = 1 });
-            webrequest.Enqueue($"{config.ApiUrl}/server/report-stats", victimBody, (code, response) => { }, this, RequestMethod.POST, headers);
         }
 
         #endregion
@@ -237,13 +438,6 @@ namespace Oxide.Plugins
 
             switch (args[0].ToLower())
             {
-                case "stats":
-                    ShowStats(player);
-                    break;
-                case "top":
-                case "leaderboard":
-                    ShowLeaderboard(player);
-                    break;
                 case "verify":
                     VerifyPlayer(player);
                     player.Message("<color=#cd4832>[RustRanked]</color> Verifying your account...");
@@ -258,60 +452,8 @@ namespace Oxide.Plugins
         {
             var sb = new StringBuilder();
             sb.AppendLine("<color=#cd4832>=== RustRanked Commands ===</color>");
-            sb.AppendLine("<color=#888>/rr stats</color> - View your stats");
-            sb.AppendLine("<color=#888>/rr top</color> - View leaderboard");
             sb.AppendLine("<color=#888>/rr verify</color> - Re-verify your account");
-            player.Message(sb.ToString());
-        }
-
-        private void ShowStats(IPlayer player)
-        {
-            if (!verifiedPlayers.TryGetValue(player.Id, out var data))
-            {
-                player.Message("<color=#cd4832>[RustRanked]</color> You are not verified. Use /rr verify");
-                return;
-            }
-
-            var kd = data.Deaths > 0 ? ((float)data.Kills / data.Deaths).ToString("F2") : data.Kills.ToString();
-            var winRate = (data.Wins + data.Losses) > 0
-                ? ((float)data.Wins / (data.Wins + data.Losses) * 100).ToString("F1") + "%"
-                : "N/A";
-
-            var sb = new StringBuilder();
-            sb.AppendLine("<color=#cd4832>=== Your RustRanked Stats ===</color>");
-            sb.AppendLine($"Rank: <color={data.RankColor}>{data.RankName}</color>");
-            sb.AppendLine($"ELO: <color=#ffffff>{data.Elo}</color>");
-            sb.AppendLine($"K/D: <color=#ffffff>{data.Kills}/{data.Deaths}</color> ({kd})");
-            sb.AppendLine($"W/L: <color=#ffffff>{data.Wins}/{data.Losses}</color> ({winRate})");
-            player.Message(sb.ToString());
-        }
-
-        private void ShowLeaderboard(IPlayer player)
-        {
-            // Get top players from connected verified players
-            var sortedPlayers = new List<KeyValuePair<string, PlayerData>>(verifiedPlayers);
-            sortedPlayers.Sort((a, b) => b.Value.Elo.CompareTo(a.Value.Elo));
-
-            var sb = new StringBuilder();
-            sb.AppendLine("<color=#cd4832>=== RustRanked Leaderboard (Online) ===</color>");
-
-            var count = 0;
-            foreach (var kvp in sortedPlayers)
-            {
-                if (count >= 10) break;
-                count++;
-
-                var data = kvp.Value;
-                sb.AppendLine($"{count}. <color={data.RankColor}>{data.SteamName}</color> - {data.Elo} ELO");
-            }
-
-            if (count == 0)
-            {
-                sb.AppendLine("No ranked players online.");
-            }
-
-            sb.AppendLine("");
-            sb.AppendLine("<color=#888>Visit rustranked.com for full leaderboard</color>");
+            sb.AppendLine("<color=#888>Visit rustranked.com/leaderboard for stats</color>");
             player.Message(sb.ToString());
         }
 
@@ -344,33 +486,6 @@ namespace Oxide.Plugins
 
             [JsonProperty("steamName")]
             public string SteamName { get; set; }
-
-            [JsonProperty("elo")]
-            public int Elo { get; set; }
-
-            [JsonProperty("rank")]
-            public string Rank { get; set; }
-
-            [JsonProperty("rankName")]
-            public string RankName { get; set; }
-
-            [JsonProperty("rankColor")]
-            public string RankColor { get; set; }
-
-            [JsonProperty("kills")]
-            public int Kills { get; set; }
-
-            [JsonProperty("deaths")]
-            public int Deaths { get; set; }
-
-            [JsonProperty("wins")]
-            public int Wins { get; set; }
-
-            [JsonProperty("losses")]
-            public int Losses { get; set; }
-
-            [JsonProperty("matchesPlayed")]
-            public int MatchesPlayed { get; set; }
         }
 
         #endregion

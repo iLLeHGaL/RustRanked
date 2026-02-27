@@ -7,7 +7,7 @@ import Link from "next/link";
 import {
   Check,
   Shield,
-  Trophy,
+  ShieldCheck,
   Users,
   Zap,
   ArrowLeft,
@@ -16,11 +16,10 @@ import {
 
 const FEATURES = [
   "Access to all RustRanked servers",
-  "Ranked matchmaking with ELO system",
-  "Verified player community (no cheaters)",
+  "Cheat-free, ID-verified community",
+  "Active server administration",
   "Discord role & server access",
-  "Match history & detailed stats",
-  "Leaderboard rankings",
+  "Per-wipe stats & leaderboard",
   "Priority support",
 ];
 
@@ -107,8 +106,8 @@ function SubscribeContent() {
             Join RustRanked
           </h1>
           <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
-            Get access to verified, competitive Rust gameplay with skill-based
-            matchmaking and a cheat-free environment.
+            Get access to verified, cheat-free Rust gameplay with active
+            moderation and a fair environment.
           </p>
         </div>
 
@@ -181,15 +180,15 @@ function SubscribeContent() {
             <div className="card">
               <div className="flex items-start gap-4">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-rust-600/10 flex-shrink-0">
-                  <Trophy className="h-5 w-5 text-rust-500" />
+                  <ShieldCheck className="h-5 w-5 text-rust-500" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-white mb-1">
-                    Skill-Based Matches
+                    Active Moderation
                   </h3>
                   <p className="text-sm text-zinc-400">
-                    Our ELO system ensures you play against opponents of similar
-                    skill. Climb the ranks and prove yourself.
+                    Dedicated admins actively monitor servers and respond to
+                    reports. Cheaters are removed swiftly so you can play fair.
                   </p>
                 </div>
               </div>

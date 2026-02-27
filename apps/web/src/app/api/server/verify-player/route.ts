@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyServerRequest } from "@/lib/server-auth";
-import { getRankInfo } from "@/lib/elo";
 import { prisma, VerificationStatus, SubscriptionStatus } from "@rustranked/database";
 
 export async function POST(request: NextRequest) {
@@ -79,23 +78,12 @@ export async function POST(request: NextRequest) {
     }
 
     // User is allowed to play
-    const rankInfo = getRankInfo(user.elo);
-
     return NextResponse.json({
       allowed: true,
       player: {
         id: user.id,
         discordName: user.discordName,
         steamName: user.steamName,
-        elo: user.elo,
-        rank: rankInfo.tier,
-        rankName: rankInfo.name,
-        rankColor: rankInfo.color,
-        kills: user.kills,
-        deaths: user.deaths,
-        wins: user.wins,
-        losses: user.losses,
-        matchesPlayed: user.matchesPlayed,
       },
     });
   } catch (error) {
