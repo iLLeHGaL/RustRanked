@@ -8,6 +8,8 @@ import {
   createVerifiedEmbed,
   createRankUpEmbed,
   createNewPlayerEmbed,
+  createBanEvasionEmbed,
+  createDuplicateIdentityEmbed,
 } from "../services/notifications.js";
 
 const API_SECRET = process.env.BOT_API_SECRET;
@@ -169,6 +171,34 @@ async function handleRequest(
           await syncUserRoles(member, user);
         }
         break;
+
+      case "anticheat.ban_evasion": {
+        const matchedBanUser = data?.matchedUserId
+          ? await prisma.user.findUnique({ where: { id: data.matchedUserId as string } })
+          : null;
+        await sendNotification(
+          createBanEvasionEmbed(
+            user.discordName,
+            user.discordAvatar,
+            matchedBanUser?.discordName || "Unknown"
+          )
+        );
+        break;
+      }
+
+      case "anticheat.duplicate_flagged": {
+        const matchedFlagUser = data?.matchedUserId
+          ? await prisma.user.findUnique({ where: { id: data.matchedUserId as string } })
+          : null;
+        await sendNotification(
+          createDuplicateIdentityEmbed(
+            user.discordName,
+            user.discordAvatar,
+            matchedFlagUser?.discordName || "Unknown"
+          )
+        );
+        break;
+      }
 
       default:
         console.log(`Unknown event: ${event}`);

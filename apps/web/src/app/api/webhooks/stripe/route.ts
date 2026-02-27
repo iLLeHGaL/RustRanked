@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
-import { prisma, SubscriptionStatus, VerificationStatus } from "@rustranked/database";
+import { prisma, SubscriptionStatus, VerificationStatus, IdentityFlagStatus } from "@rustranked/database";
 import { discordNotify } from "@/lib/discord-notify";
+import {
+  extractIdentityData,
+  generateFingerprints,
+  checkForDuplicates,
+} from "@/lib/identity-fingerprint";
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
@@ -226,19 +231,139 @@ async function handleVerificationVerified(
     return;
   }
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
-      verificationStatus: VerificationStatus.VERIFIED,
-      verificationId: session.id,
-      verifiedAt: new Date(),
-    },
-  });
+  // Extract identity data for fingerprinting
+  const identityData = await extractIdentityData(session.id);
 
-  console.log(`User ${userId} verified successfully`);
+  if (!identityData) {
+    // Identity data extraction failed — fall through to normal verification
+    console.warn(`Could not extract identity data for user ${userId}, proceeding with normal verification`);
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        verificationStatus: VerificationStatus.VERIFIED,
+        verificationId: session.id,
+        verifiedAt: new Date(),
+      },
+    });
+    await discordNotify.verificationCompleted(userId);
+    return;
+  }
 
-  // Notify Discord bot
-  await discordNotify.verificationCompleted(userId);
+  const fingerprints = generateFingerprints(identityData);
+  const duplicateCheck = await checkForDuplicates(userId, fingerprints);
+
+  if (duplicateCheck.hasDuplicate && duplicateCheck.matchedUserBanned) {
+    // Case A: Ban evasion — matched account is banned
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: {
+          verificationStatus: VerificationStatus.REJECTED,
+          verificationId: session.id,
+        },
+      }),
+      prisma.ban.create({
+        data: {
+          userId,
+          reason: "Ban evasion detected: identity matches banned account",
+          bannedBy: "SYSTEM",
+          isActive: true,
+        },
+      }),
+      prisma.identityFingerprint.upsert({
+        where: { userId },
+        update: {
+          fingerprintHash: fingerprints.fingerprintHash,
+          documentIdHash: fingerprints.documentIdHash,
+          verificationId: session.id,
+        },
+        create: {
+          userId,
+          fingerprintHash: fingerprints.fingerprintHash,
+          documentIdHash: fingerprints.documentIdHash,
+          verificationId: session.id,
+        },
+      }),
+      prisma.identityFlag.create({
+        data: {
+          flaggedUserId: userId,
+          matchedUserId: duplicateCheck.matchedUserId!,
+          matchType: duplicateCheck.matchType!,
+          status: IdentityFlagStatus.AUTO_BANNED,
+        },
+      }),
+    ]);
+
+    console.log(`Ban evasion detected: user ${userId} matches banned user ${duplicateCheck.matchedUserId}`);
+    await discordNotify.banEvasionDetected(userId, duplicateCheck.matchedUserId!);
+  } else if (duplicateCheck.hasDuplicate) {
+    // Case B: Alt account — matched account is NOT banned
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: {
+          verificationStatus: VerificationStatus.VERIFIED,
+          verificationId: session.id,
+          verifiedAt: new Date(),
+        },
+      }),
+      prisma.identityFingerprint.upsert({
+        where: { userId },
+        update: {
+          fingerprintHash: fingerprints.fingerprintHash,
+          documentIdHash: fingerprints.documentIdHash,
+          verificationId: session.id,
+        },
+        create: {
+          userId,
+          fingerprintHash: fingerprints.fingerprintHash,
+          documentIdHash: fingerprints.documentIdHash,
+          verificationId: session.id,
+        },
+      }),
+      prisma.identityFlag.create({
+        data: {
+          flaggedUserId: userId,
+          matchedUserId: duplicateCheck.matchedUserId!,
+          matchType: duplicateCheck.matchType!,
+          status: IdentityFlagStatus.PENDING,
+        },
+      }),
+    ]);
+
+    console.log(`Duplicate identity flagged: user ${userId} matches user ${duplicateCheck.matchedUserId}`);
+    await discordNotify.duplicateIdentityFlagged(userId, duplicateCheck.matchedUserId!);
+    await discordNotify.verificationCompleted(userId);
+  } else {
+    // Case C: Clean — no duplicate
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: {
+          verificationStatus: VerificationStatus.VERIFIED,
+          verificationId: session.id,
+          verifiedAt: new Date(),
+        },
+      }),
+      prisma.identityFingerprint.upsert({
+        where: { userId },
+        update: {
+          fingerprintHash: fingerprints.fingerprintHash,
+          documentIdHash: fingerprints.documentIdHash,
+          verificationId: session.id,
+        },
+        create: {
+          userId,
+          fingerprintHash: fingerprints.fingerprintHash,
+          documentIdHash: fingerprints.documentIdHash,
+          verificationId: session.id,
+        },
+      }),
+    ]);
+
+    console.log(`User ${userId} verified successfully`);
+    await discordNotify.verificationCompleted(userId);
+  }
 }
 
 async function handleVerificationFailed(

@@ -69,3 +69,33 @@ export function createNewPlayerEmbed(
     .setThumbnail(discordAvatar || null)
     .setTimestamp();
 }
+
+export function createBanEvasionEmbed(
+  flaggedName: string,
+  flaggedAvatar: string | null,
+  matchedName: string
+): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(0xff0000)
+    .setTitle("🚨 BAN EVASION DETECTED")
+    .setDescription(
+      `**${flaggedName}** attempted verification but their identity matches banned account **${matchedName}**.\n\nThe account has been **automatically banned**.`
+    )
+    .setThumbnail(flaggedAvatar || null)
+    .setTimestamp();
+}
+
+export function createDuplicateIdentityEmbed(
+  flaggedName: string,
+  flaggedAvatar: string | null,
+  matchedName: string
+): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(0xff8c00)
+    .setTitle("⚠️ Duplicate Identity Detected")
+    .setDescription(
+      `**${flaggedName}** completed verification but their identity matches existing account **${matchedName}**.\n\nThis has been flagged for **admin review**.`
+    )
+    .setThumbnail(flaggedAvatar || null)
+    .setTimestamp();
+}

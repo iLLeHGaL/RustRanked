@@ -66,4 +66,18 @@ export const discordNotify = {
 
   syncRoles: (userId: string) =>
     notifyDiscordBot({ event: "sync.roles", userId }),
+
+  banEvasionDetected: (userId: string, matchedUserId: string) =>
+    notifyDiscordBot({
+      event: "anticheat.ban_evasion",
+      userId,
+      data: { matchedUserId },
+    }),
+
+  duplicateIdentityFlagged: (userId: string, matchedUserId: string) =>
+    notifyDiscordBot({
+      event: "anticheat.duplicate_flagged",
+      userId,
+      data: { matchedUserId },
+    }),
 };

@@ -53,6 +53,9 @@ model User {
   sessions      Session[]
   bans          Ban[]
   votes         Vote[]
+  identityFingerprint IdentityFingerprint?
+  flagsAsNew          IdentityFlag[] @relation("flaggedUser")
+  flagsAsExisting     IdentityFlag[] @relation("matchedUser")
 
   @@index([discordId])
   @@index([steamId])
@@ -335,4 +338,53 @@ model WipeStats {
   @@unique([steamId, serverType, wipeId])
   @@index([steamId])
   @@index([serverType, wipeId])
+}
+
+// ============================================
+// IDENTITY ANTI-CHEAT
+// ============================================
+
+model IdentityFingerprint {
+  id              String   @id @default(cuid())
+  createdAt       DateTime @default(now())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fingerprintHash String
+  documentIdHash  String?
+  verificationId  String
+
+  @@index([fingerprintHash])
+  @@index([documentIdHash])
+}
+
+model IdentityFlag {
+  id            String             @id @default(cuid())
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  flaggedUserId String
+  flaggedUser   User               @relation("flaggedUser", fields: [flaggedUserId], references: [id])
+  matchedUserId String
+  matchedUser   User               @relation("matchedUser", fields: [matchedUserId], references: [id])
+  matchType     IdentityMatchType
+  status        IdentityFlagStatus @default(PENDING)
+  resolvedBy    String?
+  resolvedAt    DateTime?
+  resolution    String?
+
+  @@index([status])
+  @@index([flaggedUserId])
+  @@index([matchedUserId])
+}
+
+enum IdentityMatchType {
+  NAME_DOB
+  DOCUMENT_ID
+  BOTH
+}
+
+enum IdentityFlagStatus {
+  PENDING
+  CONFIRMED_ALT
+  FALSE_POSITIVE
+  AUTO_BANNED
 }
