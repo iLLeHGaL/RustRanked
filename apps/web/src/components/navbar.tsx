@@ -43,6 +43,12 @@ export function Navbar() {
           >
             Map Voting
           </Link>
+          <Link
+            href="/battle-pass"
+            className="text-sm text-zinc-400 hover:text-white transition-colors"
+          >
+            Battle Pass
+          </Link>
 
           {isLoading ? (
             <div className="h-9 w-9 bg-zinc-800 rounded-full animate-pulse" />

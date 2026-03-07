@@ -8,7 +8,7 @@ using System.Text;
 
 namespace Oxide.Plugins
 {
-    [Info("RustRanked", "RustRanked", "2.0.0")]
+    [Info("RustRanked", "RustRanked", "3.0.0")]
     [Description("Integration plugin for RustRanked competitive platform")]
     public class RustRanked : CovalencePlugin
     {
@@ -82,6 +82,9 @@ namespace Oxide.Plugins
             public string DiscordName { get; set; }
             public string SteamName { get; set; }
             public DateTime VerifiedAt { get; set; }
+            public int SeasonLevel { get; set; }
+            public int SeasonXp { get; set; }
+            public bool HasPremium { get; set; }
         }
 
         private class PlayerStats
@@ -102,6 +105,20 @@ namespace Oxide.Plugins
             public bool Dirty { get; set; }
         }
 
+        private Dictionary<string, PlayerXpAccumulator> playerXp = new Dictionary<string, PlayerXpAccumulator>();
+
+        private class PlayerXpAccumulator
+        {
+            public List<XpEntry> Entries { get; set; } = new List<XpEntry>();
+            public bool Dirty { get; set; }
+        }
+
+        private class XpEntry
+        {
+            public string Source { get; set; }
+            public int Amount { get; set; }
+        }
+
         #endregion
 
         #region Hooks
@@ -119,8 +136,9 @@ namespace Oxide.Plugins
                 VerifyPlayer(player);
             }
 
-            // Start periodic stats reporting
+            // Start periodic stats and XP reporting
             timer.Every(config.StatsReportInterval, ReportAllStats);
+            timer.Every(config.StatsReportInterval, ReportAllXp);
         }
 
         private void OnUserConnected(IPlayer player)
@@ -130,13 +148,18 @@ namespace Oxide.Plugins
 
         private void OnUserDisconnected(IPlayer player)
         {
-            // Report stats before removing player
+            // Report stats and XP before removing player
             if (playerStats.ContainsKey(player.Id) && playerStats[player.Id].Dirty)
             {
                 ReportPlayerStats(player.Id);
             }
+            if (playerXp.ContainsKey(player.Id) && playerXp[player.Id].Dirty)
+            {
+                ReportPlayerXp(player.Id);
+            }
             verifiedPlayers.Remove(player.Id);
             playerStats.Remove(player.Id);
+            playerXp.Remove(player.Id);
         }
 
         private void OnPlayerDeath(BasePlayer victim, HitInfo info)
@@ -149,16 +172,26 @@ namespace Oxide.Plugins
             // Track kill for attacker
             var attackerStats = GetOrCreateStats(attacker.UserIDString);
             attackerStats.Kills++;
+            var attackerXp = GetOrCreateXp(attacker.UserIDString);
             if (info.isHeadshot)
             {
                 attackerStats.Headshots++;
+                attackerXp.Entries.Add(new XpEntry { Source = "headshot_kill", Amount = 75 });
             }
+            else
+            {
+                attackerXp.Entries.Add(new XpEntry { Source = "kill", Amount = 50 });
+            }
+            attackerXp.Dirty = true;
             attackerStats.Dirty = true;
 
             // Track death for victim
             var victimStats = GetOrCreateStats(victim.UserIDString);
             victimStats.Deaths++;
             victimStats.Dirty = true;
+            var victimXp = GetOrCreateXp(victim.UserIDString);
+            victimXp.Entries.Add(new XpEntry { Source = "death", Amount = 5 });
+            victimXp.Dirty = true;
         }
 
         private void OnWeaponFired(BaseProjectile projectile, BasePlayer player, ItemModProjectile mod, ProjectileShoot projectiles)
@@ -177,6 +210,9 @@ namespace Oxide.Plugins
             var stats = GetOrCreateStats(player.UserIDString);
             stats.RocketsLaunched++;
             stats.Dirty = true;
+            var xp = GetOrCreateXp(player.UserIDString);
+            xp.Entries.Add(new XpEntry { Source = "rocket", Amount = 17 });
+            xp.Dirty = true;
         }
 
         private void OnExplosiveThrown(BasePlayer player, BaseEntity entity, ThrownWeapon item)
@@ -186,6 +222,9 @@ namespace Oxide.Plugins
             var stats = GetOrCreateStats(player.UserIDString);
             stats.ExplosivesUsed++;
             stats.Dirty = true;
+            var xp = GetOrCreateXp(player.UserIDString);
+            xp.Entries.Add(new XpEntry { Source = "explosive", Amount = 17 });
+            xp.Dirty = true;
         }
 
         private void OnDispenserGather(ResourceDispenser dispenser, BaseEntity entity, Item item)
@@ -211,6 +250,15 @@ namespace Oxide.Plugins
                     break;
             }
             stats.Dirty = true;
+
+            // Award XP per 1000 resources (batched)
+            var xp = GetOrCreateXp(player.UserIDString);
+            if (item.amount >= 1000)
+            {
+                int batches = item.amount / 1000;
+                xp.Entries.Add(new XpEntry { Source = "resources", Amount = batches * 12 });
+                xp.Dirty = true;
+            }
         }
 
         private void OnBowFired(BowWeapon bow, BasePlayer player, ItemModProjectile mod, ProjectileShoot projectiles)
@@ -233,6 +281,15 @@ namespace Oxide.Plugins
                 playerStats[steamId] = new PlayerStats();
             }
             return playerStats[steamId];
+        }
+
+        private PlayerXpAccumulator GetOrCreateXp(string steamId)
+        {
+            if (!playerXp.ContainsKey(steamId))
+            {
+                playerXp[steamId] = new PlayerXpAccumulator();
+            }
+            return playerXp[steamId];
         }
 
         private void ReportAllStats()
@@ -345,6 +402,127 @@ namespace Oxide.Plugins
             stats.Dirty = false;
         }
 
+        private void ReportAllXp()
+        {
+            var batch = new List<object>();
+
+            foreach (var kvp in playerXp)
+            {
+                if (!kvp.Value.Dirty || kvp.Value.Entries.Count == 0) continue;
+
+                var entries = new List<object>();
+                foreach (var entry in kvp.Value.Entries)
+                {
+                    entries.Add(new { source = entry.Source, amount = entry.Amount });
+                }
+
+                batch.Add(new
+                {
+                    steamId = kvp.Key,
+                    entries
+                });
+
+                kvp.Value.Entries.Clear();
+                kvp.Value.Dirty = false;
+            }
+
+            if (batch.Count == 0) return;
+
+            var headers = new Dictionary<string, string>
+            {
+                { "Content-Type", "application/json" }
+            };
+
+            var body = JsonConvert.SerializeObject(new
+            {
+                apiKey = config.StatsApiKey,
+                players = batch
+            });
+
+            webrequest.Enqueue(
+                $"{config.ApiUrl}/xp/batch-award",
+                body,
+                (code, response) =>
+                {
+                    if (code == 200)
+                    {
+                        try
+                        {
+                            var result = JsonConvert.DeserializeObject<XpBatchResponse>(response);
+                            if (result?.Players != null)
+                            {
+                                foreach (var p in result.Players)
+                                {
+                                    if (p.LeveledUp && verifiedPlayers.ContainsKey(p.SteamId))
+                                    {
+                                        verifiedPlayers[p.SteamId].SeasonLevel = p.NewLevel;
+                                        verifiedPlayers[p.SteamId].SeasonXp = p.NewXp;
+
+                                        var player = players.FindPlayerById(p.SteamId);
+                                        if (player != null && player.IsConnected)
+                                        {
+                                            player.Message($"<color=#cd4832>[RustRanked]</color> <color=#4ade80>Level Up!</color> You reached <color=#fbbf24>Level {p.NewLevel}</color>!");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                    else
+                    {
+                        PrintWarning($"Failed to report XP batch: HTTP {code}");
+                    }
+                },
+                this,
+                RequestMethod.PUT,
+                headers
+            );
+        }
+
+        private void ReportPlayerXp(string steamId)
+        {
+            if (!playerXp.ContainsKey(steamId) || !playerXp[steamId].Dirty) return;
+
+            var xp = playerXp[steamId];
+            if (xp.Entries.Count == 0) return;
+
+            var entries = new List<object>();
+            foreach (var entry in xp.Entries)
+            {
+                entries.Add(new { source = entry.Source, amount = entry.Amount });
+            }
+
+            var headers = new Dictionary<string, string>
+            {
+                { "Content-Type", "application/json" }
+            };
+
+            var body = JsonConvert.SerializeObject(new
+            {
+                apiKey = config.StatsApiKey,
+                players = new[] { new { steamId, entries } }
+            });
+
+            webrequest.Enqueue(
+                $"{config.ApiUrl}/xp/batch-award",
+                body,
+                (code, response) =>
+                {
+                    if (code != 200)
+                    {
+                        PrintWarning($"Failed to report XP for {steamId}: HTTP {code}");
+                    }
+                },
+                this,
+                RequestMethod.PUT,
+                headers
+            );
+
+            xp.Entries.Clear();
+            xp.Dirty = false;
+        }
+
         #endregion
 
         #region API Calls
@@ -401,20 +579,24 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                // Store verified player data
+                // Store verified player data with season info
                 verifiedPlayers[player.Id] = new PlayerData
                 {
                     UserId = result.Player.Id,
                     DiscordName = result.Player.DiscordName,
                     SteamName = result.Player.SteamName,
-                    VerifiedAt = DateTime.UtcNow
+                    VerifiedAt = DateTime.UtcNow,
+                    SeasonLevel = result.SeasonLevel,
+                    SeasonXp = result.SeasonXp,
+                    HasPremium = result.HasPremium
                 };
 
-                Puts($"Player {player.Name} verified successfully");
+                Puts($"Player {player.Name} verified successfully (Lv.{result.SeasonLevel})");
 
                 if (config.ShowWelcome)
                 {
-                    player.Message($"<color=#cd4832>[RustRanked]</color> Welcome, {player.Name}! You are verified and ready to play.");
+                    var levelInfo = result.SeasonLevel > 0 ? $" | Level {result.SeasonLevel}" : "";
+                    player.Message($"<color=#cd4832>[RustRanked]</color> Welcome, {player.Name}!{levelInfo} You are verified and ready to play.");
                 }
             }
             catch (Exception ex)
@@ -442,10 +624,31 @@ namespace Oxide.Plugins
                     VerifyPlayer(player);
                     player.Message("<color=#cd4832>[RustRanked]</color> Verifying your account...");
                     break;
+                case "bp":
+                case "battlepass":
+                    ShowBattlePass(player);
+                    break;
                 default:
                     ShowHelp(player);
                     break;
             }
+        }
+
+        private void ShowBattlePass(IPlayer player)
+        {
+            if (!verifiedPlayers.ContainsKey(player.Id))
+            {
+                player.Message("<color=#cd4832>[RustRanked]</color> You need to verify first. Use <color=#888>/rr verify</color>");
+                return;
+            }
+
+            var data = verifiedPlayers[player.Id];
+            var sb = new StringBuilder();
+            sb.AppendLine("<color=#cd4832>=== Battle Pass ===</color>");
+            sb.AppendLine($"<color=#fbbf24>Level {data.SeasonLevel}</color> | XP: {data.SeasonXp:N0}");
+            sb.AppendLine($"Premium: {(data.HasPremium ? "<color=#4ade80>Active</color>" : "<color=#888>Inactive</color>")}");
+            sb.AppendLine("<color=#888>Visit rustranked.com/battle-pass for details</color>");
+            player.Message(sb.ToString());
         }
 
         private void ShowHelp(IPlayer player)
@@ -453,6 +656,7 @@ namespace Oxide.Plugins
             var sb = new StringBuilder();
             sb.AppendLine("<color=#cd4832>=== RustRanked Commands ===</color>");
             sb.AppendLine("<color=#888>/rr verify</color> - Re-verify your account");
+            sb.AppendLine("<color=#888>/rr bp</color> - Show battle pass progress");
             sb.AppendLine("<color=#888>Visit rustranked.com/leaderboard for stats</color>");
             player.Message(sb.ToString());
         }
@@ -474,6 +678,15 @@ namespace Oxide.Plugins
 
             [JsonProperty("player")]
             public VerifyPlayerData Player { get; set; }
+
+            [JsonProperty("seasonLevel")]
+            public int SeasonLevel { get; set; }
+
+            [JsonProperty("seasonXp")]
+            public int SeasonXp { get; set; }
+
+            [JsonProperty("hasPremium")]
+            public bool HasPremium { get; set; }
         }
 
         private class VerifyPlayerData
@@ -486,6 +699,33 @@ namespace Oxide.Plugins
 
             [JsonProperty("steamName")]
             public string SteamName { get; set; }
+        }
+
+        private class XpBatchResponse
+        {
+            [JsonProperty("success")]
+            public bool Success { get; set; }
+
+            [JsonProperty("updated")]
+            public int Updated { get; set; }
+
+            [JsonProperty("players")]
+            public List<XpBatchPlayerResult> Players { get; set; }
+        }
+
+        private class XpBatchPlayerResult
+        {
+            [JsonProperty("steamId")]
+            public string SteamId { get; set; }
+
+            [JsonProperty("newLevel")]
+            public int NewLevel { get; set; }
+
+            [JsonProperty("newXp")]
+            public int NewXp { get; set; }
+
+            [JsonProperty("leveledUp")]
+            public bool LeveledUp { get; set; }
         }
 
         #endregion

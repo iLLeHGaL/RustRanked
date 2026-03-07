@@ -73,4 +73,11 @@ export const discordNotify = {
       userId,
       data: { matchedUserId },
     }),
+
+  battlePassLevelUp: (userId: string, level: number, seasonName: string) =>
+    notifyDiscordBot({
+      event: "battlepass.levelup",
+      userId,
+      data: { level, seasonName },
+    }),
 };

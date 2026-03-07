@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@rustranked/database";
+import { prisma, SeasonStatus } from "@rustranked/database";
 import { DashboardContent } from "./dashboard-content";
 
 export const dynamic = "force-dynamic";

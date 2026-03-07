@@ -9,6 +9,7 @@ import {
   createNewPlayerEmbed,
   createBanEvasionEmbed,
   createDuplicateIdentityEmbed,
+  createLevelUpEmbed,
 } from "../services/notifications.js";
 
 const API_SECRET = process.env.BOT_API_SECRET;
@@ -177,6 +178,20 @@ async function handleRequest(
             user.discordName,
             user.discordAvatar,
             matchedFlagUser?.discordName || "Unknown"
+          )
+        );
+        break;
+      }
+
+      case "battlepass.levelup": {
+        const level = data?.level as number;
+        const seasonName = (data?.seasonName as string) || "Battle Pass";
+        await sendNotification(
+          createLevelUpEmbed(
+            user.discordName,
+            user.discordAvatar,
+            level,
+            seasonName
           )
         );
         break;

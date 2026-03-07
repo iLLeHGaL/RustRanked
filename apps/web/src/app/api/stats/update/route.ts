@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@rustranked/database";
+import { prisma, SeasonStatus } from "@rustranked/database";
+import { getSeasonConfig, levelFromXp, XP_SOURCES } from "@/lib/xp-engine";
+import { notifyDiscordBot } from "@/lib/discord-notify";
 
 // Server types - matches Prisma enum
 const ServerType = {
@@ -59,6 +61,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get previous stats for delta calculation
+    const previousStats = await prisma.wipeStats.findUnique({
+      where: {
+        steamId_serverType_wipeId: {
+          steamId,
+          serverType: serverType as ServerTypeValue,
+          wipeId,
+        },
+      },
+    });
+
     // Upsert stats (create or update)
     const stats = await prisma.wipeStats.upsert({
       where: {
@@ -106,6 +119,9 @@ export async function POST(request: NextRequest) {
         resourcesGathered: resourcesGathered ?? 0,
       },
     });
+
+    // Calculate and award XP from stat deltas
+    await awardXpFromStatDeltas(steamId, previousStats, stats);
 
     return NextResponse.json({ success: true, stats });
   } catch (error) {
@@ -226,5 +242,164 @@ export async function PUT(request: NextRequest) {
       { error: "Failed to update stats" },
       { status: 500 }
     );
+  }
+}
+
+// ============================================
+// XP CALCULATION FROM STAT DELTAS
+// ============================================
+
+interface StatRecord {
+  kills: number;
+  deaths: number;
+  headshots: number;
+  rocketsLaunched: number;
+  explosivesUsed: number;
+  resourcesGathered: number;
+  hoursPlayed: number;
+}
+
+async function awardXpFromStatDeltas(
+  steamId: string,
+  previous: StatRecord | null,
+  current: StatRecord
+) {
+  try {
+    const season = await prisma.season.findFirst({
+      where: { status: SeasonStatus.ACTIVE },
+    });
+    if (!season) return;
+
+    const user = await prisma.user.findUnique({ where: { steamId } });
+    if (!user) return;
+
+    // Calculate deltas
+    const prev = previous || {
+      kills: 0,
+      deaths: 0,
+      headshots: 0,
+      rocketsLaunched: 0,
+      explosivesUsed: 0,
+      resourcesGathered: 0,
+      hoursPlayed: 0,
+    };
+
+    const killsDelta = Math.max(0, current.kills - prev.kills);
+    const deathsDelta = Math.max(0, current.deaths - prev.deaths);
+    const headshotsDelta = Math.max(0, current.headshots - prev.headshots);
+    const rocketsDelta = Math.max(0, current.rocketsLaunched - prev.rocketsLaunched);
+    const explosivesDelta = Math.max(0, current.explosivesUsed - prev.explosivesUsed);
+    const resourcesDelta = Math.max(0, current.resourcesGathered - prev.resourcesGathered);
+    const hoursDelta = Math.max(0, current.hoursPlayed - prev.hoursPlayed);
+
+    // Build XP entries
+    const xpEntries: { source: string; amount: number }[] = [];
+
+    // Kill XP (headshot kills get bonus)
+    const normalKills = Math.max(0, killsDelta - headshotsDelta);
+    if (normalKills > 0) {
+      xpEntries.push({ source: "kill", amount: normalKills * XP_SOURCES.KILL });
+    }
+    if (headshotsDelta > 0) {
+      xpEntries.push({
+        source: "headshot_kill",
+        amount: headshotsDelta * (XP_SOURCES.KILL + XP_SOURCES.HEADSHOT_BONUS),
+      });
+    }
+
+    // Death XP
+    if (deathsDelta > 0) {
+      xpEntries.push({ source: "death", amount: deathsDelta * XP_SOURCES.DEATH });
+    }
+
+    // Raiding XP
+    if (rocketsDelta > 0) {
+      xpEntries.push({ source: "rocket", amount: rocketsDelta * XP_SOURCES.ROCKET_USED });
+    }
+    if (explosivesDelta > 0) {
+      xpEntries.push({ source: "explosive", amount: explosivesDelta * XP_SOURCES.EXPLOSIVE_USED });
+    }
+
+    // Resource XP (per 1000 gathered)
+    const resourceBatches = Math.floor(resourcesDelta / 1000);
+    if (resourceBatches > 0) {
+      xpEntries.push({
+        source: "resources",
+        amount: resourceBatches * XP_SOURCES.RESOURCES_PER_1000,
+      });
+    }
+
+    // Playtime XP (capped at 1000/day = 10 hours)
+    if (hoursDelta > 0) {
+      const playtimeXp = Math.min(
+        Math.floor(hoursDelta * XP_SOURCES.PLAYTIME_PER_HOUR),
+        XP_SOURCES.PLAYTIME_DAILY_CAP
+      );
+      if (playtimeXp > 0) {
+        xpEntries.push({ source: "playtime", amount: playtimeXp });
+      }
+    }
+
+    if (xpEntries.length === 0) return;
+
+    const totalXp = xpEntries.reduce((sum, e) => sum + e.amount, 0);
+
+    // Find or create PlayerSeason
+    let playerSeason = await prisma.playerSeason.findUnique({
+      where: {
+        userId_seasonId: {
+          userId: user.id,
+          seasonId: season.id,
+        },
+      },
+    });
+
+    if (!playerSeason) {
+      playerSeason = await prisma.playerSeason.create({
+        data: {
+          userId: user.id,
+          seasonId: season.id,
+        },
+      });
+    }
+
+    const newXp = playerSeason.currentXp + totalXp;
+    const config = getSeasonConfig(season.xpPerLevel);
+    const newLevel = Math.min(
+      levelFromXp(newXp, config.baseXp, config.increase),
+      season.maxLevel
+    );
+    const leveledUp = newLevel > playerSeason.currentLevel;
+
+    await prisma.$transaction([
+      prisma.playerSeason.update({
+        where: { id: playerSeason.id },
+        data: {
+          currentXp: newXp,
+          currentLevel: newLevel,
+        },
+      }),
+      ...xpEntries.map((entry) =>
+        prisma.xpEvent.create({
+          data: {
+            userId: user.id,
+            seasonId: season.id,
+            amount: entry.amount,
+            source: entry.source,
+          },
+        })
+      ),
+    ]);
+
+    if (leveledUp) {
+      notifyDiscordBot({
+        event: "battlepass.levelup",
+        userId: user.id,
+        data: { level: newLevel, seasonName: season.name },
+      });
+    }
+  } catch (error) {
+    // XP award is non-critical, don't fail the stats update
+    console.error("XP award from stats error:", error);
   }
 }

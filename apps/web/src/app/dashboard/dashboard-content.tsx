@@ -24,6 +24,9 @@ import {
   Pickaxe,
   ExternalLink,
   User,
+  Trophy,
+  Zap,
+  Flame,
 } from "lucide-react";
 import { Navbar } from "@/components/navbar";
 
@@ -50,6 +53,18 @@ export function DashboardContent({ user }: { user: UserWithSubscription }) {
 
   const [wipeStats, setWipeStats] = useState<WipeStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [battlePass, setBattlePass] = useState<{
+    season: { name: string; number: number; endsAt: string } | null;
+    progress: {
+      currentXp: number;
+      currentLevel: number;
+      levelProgress: number;
+      loginStreak: number;
+      lastLoginDate: string | null;
+      xpToNextLevel: number;
+    } | null;
+  } | null>(null);
+  const [claimingDaily, setClaimingDaily] = useState(false);
 
   const isVerified = user.verificationStatus === VerificationStatus.VERIFIED;
   const hasActiveSubscription =
@@ -72,8 +87,46 @@ export function DashboardContent({ user }: { user: UserWithSubscription }) {
         setStatsLoading(false);
       }
     }
+
+    async function fetchBattlePass() {
+      try {
+        const res = await fetch("/api/battle-pass/progress");
+        const data = await res.json();
+        setBattlePass(data);
+      } catch (error) {
+        console.error("Failed to fetch battle pass:", error);
+      }
+    }
+
     fetchWipeStats();
+    fetchBattlePass();
   }, [user.steamId]);
+
+  const handleClaimDaily = async () => {
+    setClaimingDaily(true);
+    try {
+      const res = await fetch("/api/battle-pass/daily-login", { method: "POST" });
+      if (res.ok) {
+        const bpRes = await fetch("/api/battle-pass/progress");
+        const bpData = await bpRes.json();
+        setBattlePass(bpData);
+      }
+    } catch {
+      console.error("Failed to claim daily login");
+    } finally {
+      setClaimingDaily(false);
+    }
+  };
+
+  const canClaimDaily = battlePass?.progress &&
+    (!battlePass.progress.lastLoginDate ||
+      !isSameDayUTC(new Date(battlePass.progress.lastLoginDate), new Date()));
+
+  function isSameDayUTC(a: Date, b: Date): boolean {
+    return a.getUTCFullYear() === b.getUTCFullYear() &&
+      a.getUTCMonth() === b.getUTCMonth() &&
+      a.getUTCDate() === b.getUTCDate();
+  }
 
   return (
     <div className="min-h-screen bg-dark-950">
@@ -312,6 +365,71 @@ export function DashboardContent({ user }: { user: UserWithSubscription }) {
               subtext="Gathered"
             />
           </div>
+        )}
+
+        {/* Battle Pass Summary */}
+        {battlePass?.season && battlePass?.progress && (
+          <>
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-rust-500" />
+              Battle Pass
+              <span className="text-sm font-normal text-zinc-500 ml-2">
+                {battlePass.season.name}
+              </span>
+            </h2>
+            <div className="card mb-8">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+                {/* Level Badge */}
+                <div className="h-16 w-16 rounded-xl bg-gradient-to-br from-rust-600 to-rust-800 flex items-center justify-center flex-shrink-0">
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-white leading-none">
+                      {battlePass.progress.currentLevel}
+                    </div>
+                    <div className="text-[9px] uppercase tracking-wider text-rust-200/80">Lv</div>
+                  </div>
+                </div>
+
+                {/* XP Progress */}
+                <div className="flex-1 min-w-0 w-full">
+                  <div className="flex items-baseline justify-between mb-1.5">
+                    <span className="text-sm text-zinc-400">
+                      {battlePass.progress.currentXp.toLocaleString()} XP
+                    </span>
+                    <span className="text-xs text-zinc-500">
+                      {battlePass.progress.xpToNextLevel.toLocaleString()} to next
+                    </span>
+                  </div>
+                  <div className="h-2.5 bg-zinc-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-rust-600 to-rust-500 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(battlePass.progress.levelProgress * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Daily Login + Streak */}
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  {battlePass.progress.loginStreak > 0 && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-800 text-xs">
+                      <Flame className="h-3.5 w-3.5 text-orange-400" />
+                      <span className="text-zinc-300 font-medium">{battlePass.progress.loginStreak}d</span>
+                    </div>
+                  )}
+                  <button
+                    onClick={handleClaimDaily}
+                    disabled={!canClaimDaily || claimingDaily}
+                    className={canClaimDaily ? "btn-primary text-sm" : "btn-secondary text-sm opacity-50 cursor-not-allowed"}
+                  >
+                    <Zap className="h-3.5 w-3.5 mr-1.5" />
+                    {claimingDaily ? "..." : canClaimDaily ? "+200 XP" : "Claimed"}
+                  </button>
+                  <Link href="/battle-pass" className="btn-secondary text-sm">
+                    View
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </>
         )}
 
         {/* Access Status */}

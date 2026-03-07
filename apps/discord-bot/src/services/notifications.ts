@@ -81,3 +81,19 @@ export function createDuplicateIdentityEmbed(
     .setThumbnail(flaggedAvatar || null)
     .setTimestamp();
 }
+
+export function createLevelUpEmbed(
+  discordName: string,
+  discordAvatar: string | null,
+  level: number,
+  seasonName: string
+): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(0x4ade80)
+    .setTitle("🎖️ Level Up!")
+    .setDescription(
+      `**${discordName}** reached **Level ${level}** in ${seasonName}!`
+    )
+    .setThumbnail(discordAvatar || null)
+    .setTimestamp();
+}

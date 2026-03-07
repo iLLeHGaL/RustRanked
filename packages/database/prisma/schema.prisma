@@ -47,6 +47,19 @@ model User {
   flagsAsNew          IdentityFlag[] @relation("flaggedUser")
   flagsAsExisting     IdentityFlag[] @relation("matchedUser")
 
+  // Economy & Battle Pass relations
+  tokenBalance       TokenBalance?
+  tokenTransactions  TokenTransaction[]
+  playerSeasons      PlayerSeason[]
+  xpEvents           XpEvent[]
+  playerChallenges   PlayerChallenge[]
+  inventory          PlayerInventory[]
+  caseOpenings       CaseOpening[]
+  shopPurchases      ShopPurchase[]
+  spinResults        SpinWheelResult[]
+  creator            Creator?
+  streamProtection   StreamProtection?
+
   @@index([discordId])
   @@index([steamId])
 }
@@ -328,4 +341,516 @@ enum IdentityFlagStatus {
   CONFIRMED_ALT
   FALSE_POSITIVE
   AUTO_BANNED
+}
+
+// ============================================
+// GAME ECONOMY ENUMS
+// ============================================
+
+enum SeasonStatus {
+  UPCOMING
+  ACTIVE
+  ENDED
+  ARCHIVED
+}
+
+enum ChallengeType {
+  DAILY
+  WEEKLY
+}
+
+enum ChallengeCategory {
+  PVP
+  FARMING
+  RAIDING
+  SURVIVAL
+  GENERAL
+}
+
+enum ChallengeStatus {
+  ACTIVE
+  COMPLETED
+  EXPIRED
+}
+
+enum RewardType {
+  TOKENS
+  XP
+  BATTLE_PASS_XP
+  COSMETIC
+  CASE
+  VIP_DAYS
+  XP_BOOST
+  BADGE
+}
+
+enum CosmeticType {
+  PROFILE_BADGE
+  NAME_COLOR
+  WIPE_TITLE
+  PROFILE_BANNER
+  KILL_EFFECT
+  WEAPON_SKIN
+  BUILDING_SKIN
+}
+
+enum CosmeticRarity {
+  COMMON
+  UNCOMMON
+  RARE
+  EPIC
+  LEGENDARY
+  SEASONAL
+}
+
+enum CaseType {
+  BASIC
+  RARE
+  ELITE
+  SEASONAL
+}
+
+enum TransactionType {
+  EARN_DAILY_LOGIN
+  EARN_PLAYTIME
+  EARN_PVP_ACHIEVEMENT
+  EARN_BATTLE_PASS
+  EARN_CHALLENGE
+  EARN_EVENT
+  EARN_REFUND
+  SPEND_CASE_OPEN
+  SPEND_SHOP_PURCHASE
+  SPEND_SPIN_WHEEL
+  ADMIN_GRANT
+  ADMIN_DEDUCT
+}
+
+enum CreatorTier {
+  CREATOR
+  PARTNER
+}
+
+// ============================================
+// SEASON & BATTLE PASS
+// ============================================
+
+model Season {
+  id        String       @id @default(cuid())
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  name      String
+  number    Int          @unique
+  status    SeasonStatus @default(UPCOMING)
+  startsAt  DateTime
+  endsAt    DateTime
+  maxLevel  Int          @default(50)
+  xpPerLevel Json       // { baseXp: number, increase: number }
+
+  // Relations
+  tiers         BattlePassTier[]
+  playerSeasons PlayerSeason[]
+  xpEvents      XpEvent[]
+  challenges    ChallengeTemplate[]
+  cosmetics     Cosmetic[]
+  caseDefinitions CaseDefinition[]
+  shopItems     ShopItem[]
+
+  @@index([status])
+}
+
+model BattlePassTier {
+  id        String     @id @default(cuid())
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  seasonId  String
+  season    Season     @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  level      Int
+  isPremium  Boolean   @default(false)
+  rewardType RewardType
+  rewardAmount Int?
+  cosmeticId String?
+  caseDefId  String?
+
+  @@unique([seasonId, level, isPremium])
+  @@index([seasonId])
+}
+
+model PlayerSeason {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  seasonId  String
+  season    Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  currentXp     Int      @default(0)
+  currentLevel  Int      @default(0)
+  hasPremium    Boolean  @default(false)
+  claimedLevels Int[]
+  lastLoginDate DateTime?
+  loginStreak   Int      @default(0)
+
+  @@unique([userId, seasonId])
+  @@index([userId])
+  @@index([seasonId])
+}
+
+model XpEvent {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  seasonId  String
+  season    Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  amount    Int
+  source    String   // e.g. "kill", "headshot", "daily_login", "playtime"
+  metadata  Json?
+
+  @@index([userId])
+  @@index([seasonId])
+  @@index([createdAt])
+}
+
+// ============================================
+// TOKEN ECONOMY (future)
+// ============================================
+
+model TokenBalance {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId      String @unique
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  balance     Int    @default(0)
+  totalEarned Int    @default(0)
+  totalSpent  Int    @default(0)
+}
+
+model TokenTransaction {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId       String
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type         TransactionType
+  amount       Int
+  balanceAfter Int
+  description  String
+  metadata     Json?
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ============================================
+// COSMETICS & INVENTORY (future)
+// ============================================
+
+model Cosmetic {
+  id          String        @id @default(cuid())
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  name        String
+  description String?
+  imageUrl    String?
+  type        CosmeticType
+  rarity      CosmeticRarity
+  seasonId    String?
+  season      Season?       @relation(fields: [seasonId], references: [id])
+  isLimited   Boolean       @default(false)
+  gameItemId  String?       // Reference to in-game item if applicable
+
+  // Relations
+  inventory   PlayerInventory[]
+
+  @@index([type])
+  @@index([rarity])
+}
+
+model PlayerInventory {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  cosmeticId String
+  cosmetic   Cosmetic @relation(fields: [cosmeticId], references: [id])
+
+  isEquipped Boolean  @default(false)
+  source     String   // e.g. "battle_pass", "case", "shop", "admin"
+  sourceId   String?  // Reference to the source record
+
+  @@unique([userId, cosmeticId])
+  @@index([userId])
+}
+
+// ============================================
+// CASES (future)
+// ============================================
+
+model CaseDefinition {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  name        String
+  description String?
+  imageUrl    String?
+  caseType    CaseType
+  tokenCost   Int
+  isActive    Boolean  @default(true)
+  seasonId    String?
+  season      Season?  @relation(fields: [seasonId], references: [id])
+
+  // Relations
+  contents    CaseContent[]
+  openings    CaseOpening[]
+
+  @@index([caseType])
+  @@index([isActive])
+}
+
+model CaseContent {
+  id         String         @id @default(cuid())
+  createdAt  DateTime       @default(now())
+
+  caseDefId  String
+  caseDef    CaseDefinition @relation(fields: [caseDefId], references: [id], onDelete: Cascade)
+
+  rewardType  RewardType
+  cosmeticId  String?
+  tokenAmount Int?
+  xpAmount    Int?
+  vipDays     Int?
+  weight      Int           // Higher = more common
+
+  @@index([caseDefId])
+}
+
+model CaseOpening {
+  id         String         @id @default(cuid())
+  createdAt  DateTime       @default(now())
+
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  caseDefId  String
+  caseDef    CaseDefinition @relation(fields: [caseDefId], references: [id])
+
+  rewardType  RewardType
+  cosmeticId  String?
+  tokenAmount Int?
+  xpAmount    Int?
+  vipDays     Int?
+  tokenCost   Int
+
+  @@index([userId])
+  @@index([caseDefId])
+}
+
+// ============================================
+// CHALLENGES (future)
+// ============================================
+
+model ChallengeTemplate {
+  id          String            @id @default(cuid())
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  name        String
+  description String?
+  category    ChallengeCategory
+  type        ChallengeType
+  statKey     String            // e.g. "kills", "headshots", "resourcesGathered"
+  targetValue Int
+  rewardType  RewardType
+  rewardAmount Int
+  seasonId    String?
+  season      Season?           @relation(fields: [seasonId], references: [id])
+  isActive    Boolean           @default(true)
+  minLevel    Int               @default(0)
+
+  // Relations
+  playerChallenges PlayerChallenge[]
+
+  @@index([type])
+  @@index([isActive])
+}
+
+model PlayerChallenge {
+  id          String          @id @default(cuid())
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  seasonId    String
+  templateId  String
+  template    ChallengeTemplate @relation(fields: [templateId], references: [id])
+
+  currentValue Int             @default(0)
+  targetValue  Int
+  startValue   Int             @default(0)
+  status       ChallengeStatus @default(ACTIVE)
+  assignedAt   DateTime        @default(now())
+  expiresAt    DateTime
+  completedAt  DateTime?
+
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+// ============================================
+// SHOP (future)
+// ============================================
+
+model ShopItem {
+  id             String   @id @default(cuid())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  name           String
+  description    String?
+  cosmeticId     String?
+  caseDefId      String?
+  tokenCost      Int
+  isActive       Boolean  @default(true)
+  availableFrom  DateTime?
+  availableUntil DateTime?
+  maxPurchases   Int?
+  seasonId       String?
+  season         Season?  @relation(fields: [seasonId], references: [id])
+
+  // Relations
+  purchases ShopPurchase[]
+
+  @@index([isActive])
+}
+
+model ShopPurchase {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  shopItemId String
+  shopItem   ShopItem @relation(fields: [shopItemId], references: [id])
+
+  tokenCost  Int
+
+  @@index([userId])
+  @@index([shopItemId])
+}
+
+// ============================================
+// SPIN WHEEL (future)
+// ============================================
+
+model SpinWheelConfig {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  name      String
+  tokenCost Int
+  isActive  Boolean  @default(true)
+
+  // Relations
+  segments SpinWheelSegment[]
+  results  SpinWheelResult[]
+}
+
+model SpinWheelSegment {
+  id        String          @id @default(cuid())
+  createdAt DateTime        @default(now())
+
+  wheelId   String
+  wheel     SpinWheelConfig @relation(fields: [wheelId], references: [id], onDelete: Cascade)
+
+  label        String
+  rewardType   RewardType
+  rewardAmount Int?
+  cosmeticId   String?
+  weight       Int
+  color        String?
+
+  // Relations
+  results SpinWheelResult[]
+
+  @@index([wheelId])
+}
+
+model SpinWheelResult {
+  id        String          @id @default(cuid())
+  createdAt DateTime        @default(now())
+
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  wheelId   String
+  wheel     SpinWheelConfig @relation(fields: [wheelId], references: [id])
+
+  segmentId String
+  segment   SpinWheelSegment @relation(fields: [segmentId], references: [id])
+
+  tokenCost    Int
+  rewardType   RewardType
+  rewardAmount Int?
+
+  @@index([userId])
+  @@index([wheelId])
+}
+
+// ============================================
+// CREATOR PROGRAM (future)
+// ============================================
+
+model Creator {
+  id        String      @id @default(cuid())
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  userId          String      @unique
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tier            CreatorTier
+  twitchUsername   String?
+  twitchId        String?     @unique
+  queuePriority   Int         @default(0)
+  antiSnipe       Boolean     @default(false)
+  isActive        Boolean     @default(true)
+
+  @@index([tier])
+}
+
+model StreamProtection {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  isLive        Boolean  @default(false)
+  nameHidden    Boolean  @default(false)
+  lastLiveCheck DateTime?
 }
