@@ -101,6 +101,8 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
   const userId = session.metadata?.userId;
   const customerId = session.customer as string;
   const vipType = session.metadata?.vipType;
+  const serverId = session.metadata?.serverId;
+  const serverName = session.metadata?.serverName;
 
   if (!userId) {
     console.error("Missing userId in checkout session");
@@ -120,12 +122,17 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
       console.error("Missing subscriptionId for monthly VIP checkout");
       return;
     }
+    if (!serverId) {
+      console.error("Missing serverId for monthly VIP checkout");
+      return;
+    }
 
     const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
     await prisma.vipAccess.create({
       data: {
         userId,
+        serverId,
         type: "MONTHLY",
         status: "ACTIVE",
         stripeSubscriptionId: subscriptionId,
@@ -134,10 +141,15 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
       },
     });
 
-    console.log(`VIP Monthly created for user ${userId}`);
-    await discordNotify.vipActivated(userId, "monthly");
+    console.log(`VIP Monthly created for user ${userId} on server ${serverId}`);
+    await discordNotify.vipActivated(userId, "monthly", serverName || undefined);
   } else if (vipType === "wipe") {
     // VIP Wipe - one-time payment
+    if (!serverId) {
+      console.error("Missing serverId for wipe VIP checkout");
+      return;
+    }
+
     const paymentIntentId = typeof session.payment_intent === "string"
       ? session.payment_intent
       : session.payment_intent?.id;
@@ -145,6 +157,7 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     await prisma.vipAccess.create({
       data: {
         userId,
+        serverId,
         type: "WIPE",
         status: "ACTIVE",
         stripePaymentId: paymentIntentId || null,
@@ -152,8 +165,8 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
       },
     });
 
-    console.log(`VIP Wipe created for user ${userId}`);
-    await discordNotify.vipActivated(userId, "wipe");
+    console.log(`VIP Wipe created for user ${userId} on server ${serverId}`);
+    await discordNotify.vipActivated(userId, "wipe", serverName || undefined);
   } else {
     // Fallback: old subscription flow (backward compat for in-flight webhooks)
     const subscriptionId = session.subscription as string;

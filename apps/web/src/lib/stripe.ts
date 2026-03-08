@@ -14,11 +14,15 @@ export async function createVipCheckoutSession({
   email,
   customerId,
   type,
+  serverId,
+  serverName,
 }: {
   userId: string;
   email?: string | null;
   customerId?: string | null;
   type: "monthly" | "wipe";
+  serverId: string;
+  serverName: string;
 }) {
   const isMonthly = type === "monthly";
   const priceId = isMonthly
@@ -49,6 +53,8 @@ export async function createVipCheckoutSession({
     metadata: {
       userId,
       vipType: type,
+      serverId,
+      serverName,
     },
   };
 
@@ -57,6 +63,8 @@ export async function createVipCheckoutSession({
       metadata: {
         userId,
         vipType: type,
+        serverId,
+        serverName,
       },
     };
   }

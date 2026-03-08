@@ -20,6 +20,7 @@ export default async function BillingPage() {
           status: "ACTIVE",
           expiresAt: { gt: new Date() },
         },
+        include: { server: true },
       },
     },
   });

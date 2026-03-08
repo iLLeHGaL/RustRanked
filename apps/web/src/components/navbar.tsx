@@ -20,6 +20,12 @@ export function Navbar() {
         </Link>
         <div className="flex items-center gap-4">
           <Link
+            href="/servers"
+            className="text-sm text-zinc-400 hover:text-white transition-colors"
+          >
+            Servers
+          </Link>
+          <Link
             href="/leaderboard"
             className="text-sm text-zinc-400 hover:text-white transition-colors"
           >

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@rustranked/database";
@@ -12,19 +12,34 @@ async function isAdmin(): Promise<boolean> {
   return ADMIN_DISCORD_IDS.includes(session.user.discordId);
 }
 
-// POST - Expire all active wipe VIPs (called when a new wipe starts)
-export async function POST() {
+// POST - Expire active wipe VIPs (optionally for a specific server)
+export async function POST(request: NextRequest) {
   if (!(await isAdmin())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
   try {
+    let serverId: string | undefined;
+
+    try {
+      const body = await request.json();
+      serverId = body.serverId;
+    } catch {
+      // No body or invalid JSON is fine - expire all
+    }
+
+    const whereClause: Record<string, unknown> = {
+      type: "WIPE",
+      status: "ACTIVE",
+    };
+
+    if (serverId) {
+      whereClause.serverId = serverId;
+    }
+
     // Find all active wipe VIPs
     const activeWipeVips = await prisma.vipAccess.findMany({
-      where: {
-        type: "WIPE",
-        status: "ACTIVE",
-      },
+      where: whereClause,
       select: {
         id: true,
         userId: true,
@@ -39,12 +54,9 @@ export async function POST() {
       });
     }
 
-    // Expire all wipe VIPs
+    // Expire all matching wipe VIPs
     await prisma.vipAccess.updateMany({
-      where: {
-        type: "WIPE",
-        status: "ACTIVE",
-      },
+      where: whereClause,
       data: {
         status: "EXPIRED",
       },
@@ -58,7 +70,7 @@ export async function POST() {
     return NextResponse.json({
       success: true,
       expiredCount: activeWipeVips.length,
-      message: `Expired ${activeWipeVips.length} wipe VIP(s)`,
+      message: `Expired ${activeWipeVips.length} wipe VIP(s)${serverId ? " for server" : ""}`,
     });
   } catch (error) {
     console.error("Expire wipe VIP error:", error);

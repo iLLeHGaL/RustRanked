@@ -19,13 +19,15 @@ export async function sendNotification(embed: EmbedBuilder) {
 export function createVipActivatedEmbed(
   discordName: string,
   discordAvatar: string | null,
-  vipType: string
+  vipType: string,
+  serverName?: string
 ): EmbedBuilder {
   const typeLabel = vipType === "monthly" ? "Monthly" : "Wipe";
+  const serverText = serverName ? ` on **${serverName}**` : "";
   return new EmbedBuilder()
     .setColor(0xfbbf24)
     .setTitle("⭐ New VIP!")
-    .setDescription(`**${discordName}** just activated VIP ${typeLabel}!`)
+    .setDescription(`**${discordName}** just activated VIP ${typeLabel}${serverText}!`)
     .setThumbnail(discordAvatar || null)
     .setTimestamp();
 }

@@ -138,8 +138,9 @@ async function handleRequest(
           await syncUserRoles(member, user);
         }
         const vipType = (data?.vipType as string) || "monthly";
+        const serverName = data?.serverName as string | undefined;
         await sendNotification(
-          createVipActivatedEmbed(user.discordName, user.discordAvatar, vipType)
+          createVipActivatedEmbed(user.discordName, user.discordAvatar, vipType, serverName)
         );
         break;
       }

@@ -6,6 +6,7 @@ import {
   User,
   type Subscription,
   type VipAccess,
+  type GameServer,
 } from "@rustranked/database";
 import {
   ArrowLeft,
@@ -17,17 +18,20 @@ import {
   Loader2,
 } from "lucide-react";
 
+type VipAccessWithServer = VipAccess & {
+  server: GameServer;
+};
+
 type UserWithBilling = User & {
   subscription: Subscription | null;
-  vipAccess: VipAccess[];
+  vipAccess: VipAccessWithServer[];
 };
 
 export function BillingContent({ user }: { user: UserWithBilling }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const activeVip = user.vipAccess[0] ?? null;
-  const hasVip = !!activeVip;
+  const hasVip = user.vipAccess.length > 0;
 
   const handleManageBilling = async () => {
     setLoading(true);
@@ -102,41 +106,47 @@ export function BillingContent({ user }: { user: UserWithBilling }) {
             )}
           </div>
 
-          {hasVip && activeVip ? (
+          {hasVip ? (
             <div className="space-y-4">
-              <div className="flex items-center gap-3 text-sm">
-                <Crown className="h-4 w-4 text-zinc-500" />
-                <span className="text-zinc-400">Plan:</span>
-                <span className="text-white">
-                  VIP {activeVip.type === "MONTHLY" ? "Monthly" : "Wipe"}
-                </span>
-              </div>
-              <div className="flex items-center gap-3 text-sm">
-                <Calendar className="h-4 w-4 text-zinc-500" />
-                <span className="text-zinc-400">
-                  {activeVip.type === "MONTHLY" && activeVip.cancelAtPeriodEnd
-                    ? "Access until:"
-                    : activeVip.type === "MONTHLY"
-                      ? "Next billing date:"
-                      : "Expires:"}
-                </span>
-                <span className="text-white">
-                  {new Date(activeVip.expiresAt).toLocaleDateString("en-US", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </span>
-              </div>
-
-              {activeVip.type === "MONTHLY" && activeVip.cancelAtPeriodEnd && (
-                <div className="mt-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20 p-3">
-                  <p className="text-sm text-yellow-400">
-                    Your VIP is set to cancel at the end of the current billing
-                    period. You&apos;ll retain VIP access until then.
-                  </p>
+              {user.vipAccess.map((vip) => (
+                <div key={vip.id} className="rounded-lg bg-zinc-800/50 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-white">
+                      {vip.server.name}
+                    </span>
+                    <span className="text-xs text-zinc-400">
+                      {vip.type === "MONTHLY" ? "Monthly" : "Wipe"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm">
+                    <Calendar className="h-4 w-4 text-zinc-500" />
+                    <span className="text-zinc-400">
+                      {vip.type === "MONTHLY" && vip.cancelAtPeriodEnd
+                        ? "Access until:"
+                        : vip.type === "MONTHLY"
+                          ? "Next billing date:"
+                          : "Expires:"}
+                    </span>
+                    <span className="text-white">
+                      {new Date(vip.expiresAt).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}
+                    </span>
+                  </div>
+                  {vip.type === "MONTHLY" && vip.cancelAtPeriodEnd && (
+                    <div className="mt-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 p-2">
+                      <p className="text-xs text-yellow-400">
+                        Set to cancel at end of billing period.
+                      </p>
+                    </div>
+                  )}
                 </div>
-              )}
+              ))}
+              <Link href="/servers" className="btn-secondary text-sm inline-flex items-center gap-2">
+                Add VIP on another server
+              </Link>
             </div>
           ) : (
             <div className="text-center py-6">
@@ -144,9 +154,9 @@ export function BillingContent({ user }: { user: UserWithBilling }) {
                 VIP is optional &mdash; RustRanked is free to play!
               </p>
               <p className="text-zinc-500 text-sm mb-4">
-                VIP gives you queue priority on all servers.
+                VIP gives you queue priority per server.
               </p>
-              <Link href="/vip" className="btn-primary">
+              <Link href="/servers" className="btn-primary">
                 Get VIP
               </Link>
             </div>

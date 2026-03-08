@@ -13,11 +13,30 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { type } = body as { type?: string };
+    const { type, serverId } = body as { type?: string; serverId?: string };
 
     if (type !== "monthly" && type !== "wipe") {
       return NextResponse.json(
         { error: "Invalid VIP type. Must be 'monthly' or 'wipe'" },
+        { status: 400 }
+      );
+    }
+
+    if (!serverId) {
+      return NextResponse.json(
+        { error: "Server selection is required" },
+        { status: 400 }
+      );
+    }
+
+    // Validate server exists and is active
+    const server = await prisma.gameServer.findFirst({
+      where: { id: serverId, isActive: true },
+    });
+
+    if (!server) {
+      return NextResponse.json(
+        { error: "Invalid server selection" },
         { status: 400 }
       );
     }
@@ -30,6 +49,7 @@ export async function POST(request: NextRequest) {
             status: "ACTIVE",
             expiresAt: { gt: new Date() },
             type: type === "monthly" ? "MONTHLY" : "WIPE",
+            serverId,
           },
         },
       },
@@ -39,10 +59,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Check if user already has active VIP of same type
+    // Check if user already has active VIP of same type on this server
     if (user.vipAccess.length > 0) {
       return NextResponse.json(
-        { error: `Already have active VIP (${type})` },
+        { error: `Already have active VIP (${type}) on ${server.name}` },
         { status: 400 }
       );
     }
@@ -52,6 +72,8 @@ export async function POST(request: NextRequest) {
       email: user.email,
       customerId: user.stripeCustomerId,
       type,
+      serverId,
+      serverName: server.name,
     });
 
     return NextResponse.json({ url: checkoutSession.url });

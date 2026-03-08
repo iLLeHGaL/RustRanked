@@ -23,6 +23,7 @@ export default async function DashboardPage() {
           status: "ACTIVE",
           expiresAt: { gt: new Date() },
         },
+        include: { server: true },
       },
     },
   });

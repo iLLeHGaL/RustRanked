@@ -118,6 +118,9 @@ model VipAccess {
   userId               String
   user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  serverId             String
+  server               GameServer @relation(fields: [serverId], references: [id])
+
   type                 VipType
   status               VipStatus @default(ACTIVE)
 
@@ -128,6 +131,7 @@ model VipAccess {
   cancelAtPeriodEnd    Boolean   @default(false)
 
   @@index([userId])
+  @@index([serverId])
   @@index([status])
 }
 
@@ -142,6 +146,18 @@ model GameServer {
 
   name        String
   description String?
+  slug        String   @unique  // URL-friendly: "us-main", "eu-small"
+
+  // Display metadata
+  region       String             // "US", "EU", "SEA"
+  category     String             // "Main", "Monthly", "Biweekly", etc.
+  teamLimit    Int?               // null = unlimited
+  wipeSchedule String  @default("") // "Thursdays 2pm EST"
+  mapSize      Int?               // 3500, 4250, etc.
+  maxPlayers   Int     @default(250)
+  displayOrder Int     @default(0)
+  isPublic     Boolean @default(true)
+  connectUrl   String?            // steam://connect/ip:port
 
   // Connection
   ip          String
@@ -154,6 +170,9 @@ model GameServer {
   // Status
   isActive    Boolean  @default(true)
   lastSeen    DateTime?
+
+  // Relations
+  vipAccesses VipAccess[]
 
   @@unique([ip, port])
 }

@@ -8,6 +8,7 @@ import {
   User as UserType,
   type Subscription,
   type VipAccess,
+  type GameServer,
   VerificationStatus,
 } from "@rustranked/database";
 import {
@@ -43,9 +44,13 @@ function getKDRatio(kills: number, deaths: number): string {
   return (kills / deaths).toFixed(2);
 }
 
+type VipAccessWithServer = VipAccess & {
+  server: GameServer;
+};
+
 type UserWithSubscription = UserType & {
   subscription: Subscription | null;
-  vipAccess: VipAccess[];
+  vipAccess: VipAccessWithServer[];
 };
 
 export function DashboardContent({ user }: { user: UserWithSubscription }) {
@@ -288,29 +293,34 @@ export function DashboardContent({ user }: { user: UserWithSubscription }) {
             title="VIP"
             icon={Crown}
             status={hasVip ? "complete" : "optional"}
-            statusText={hasVip ? "Active" : "Optional"}
+            statusText={hasVip ? `${user.vipAccess.length} Active` : "Optional"}
             action={
-              hasVip ? (
-                <Link href="/billing" className="btn-secondary text-sm mt-4">
-                  Manage VIP
+              <div className="flex gap-2 mt-4">
+                {hasVip && (
+                  <Link href="/billing" className="btn-secondary text-sm">
+                    Manage
+                  </Link>
+                )}
+                <Link href="/servers" className="btn-secondary text-sm">
+                  {hasVip ? "Add Server" : "Get VIP"}
                 </Link>
-              ) : (
-                <Link href="/vip" className="btn-secondary text-sm mt-4">
-                  Get VIP
-                </Link>
-              )
+              </div>
             }
           >
-            {hasVip && activeVip ? (
-              <p className="text-sm text-zinc-400 mt-2">
-                {activeVip.type === "MONTHLY" ? "Monthly" : "Wipe"} VIP &middot;{" "}
-                {activeVip.type === "MONTHLY"
-                  ? `Renews ${new Date(activeVip.expiresAt).toLocaleDateString()}`
-                  : `Expires ${new Date(activeVip.expiresAt).toLocaleDateString()}`}
-              </p>
+            {hasVip ? (
+              <div className="mt-2 space-y-1">
+                {user.vipAccess.map((vip) => (
+                  <p key={vip.id} className="text-sm text-zinc-400">
+                    {vip.server.name} &middot; {vip.type === "MONTHLY" ? "Monthly" : "Wipe"} &middot;{" "}
+                    {vip.type === "MONTHLY"
+                      ? `Renews ${new Date(vip.expiresAt).toLocaleDateString()}`
+                      : `Expires ${new Date(vip.expiresAt).toLocaleDateString()}`}
+                  </p>
+                ))}
+              </div>
             ) : (
               <p className="text-sm text-zinc-400 mt-2">
-                Queue priority on all servers
+                Queue priority per server
               </p>
             )}
           </StatusCard>

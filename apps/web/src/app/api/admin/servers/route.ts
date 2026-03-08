@@ -44,11 +44,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, description, ip, port, rconPort } = body;
+    const { name, description, ip, port, rconPort, slug, region, category } = body;
 
-    if (!name || !ip || !port) {
+    if (!name || !ip || !port || !slug || !region || !category) {
       return NextResponse.json(
-        { error: "name, ip, and port are required" },
+        { error: "name, ip, port, slug, region, and category are required" },
         { status: 400 }
       );
     }
@@ -73,6 +73,9 @@ export async function POST(request: NextRequest) {
       data: {
         name,
         description,
+        slug,
+        region,
+        category,
         ip,
         port,
         rconPort,

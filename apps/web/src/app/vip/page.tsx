@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -13,10 +13,20 @@ import {
   ArrowLeft,
   Loader2,
   Crown,
+  ChevronDown,
+  Server,
 } from "lucide-react";
 
+interface GameServer {
+  id: string;
+  name: string;
+  slug: string;
+  region: string;
+  category: string;
+}
+
 const VIP_FEATURES = [
-  "Skip the queue on all servers",
+  "Skip the queue on this server",
   "Support RustRanked development",
 ];
 
@@ -46,8 +56,35 @@ function VipContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const canceled = searchParams.get("canceled");
+  const serverSlug = searchParams.get("server");
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [servers, setServers] = useState<GameServer[]>([]);
+  const [selectedServerId, setSelectedServerId] = useState<string>("");
+  const [serversLoading, setServersLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchServers() {
+      try {
+        const res = await fetch("/api/servers");
+        const data = await res.json();
+        setServers(data.servers || []);
+
+        // Pre-select server from query param
+        if (serverSlug && data.servers) {
+          const match = data.servers.find(
+            (s: GameServer) => s.slug === serverSlug
+          );
+          if (match) setSelectedServerId(match.id);
+        }
+      } catch {
+        console.error("Failed to fetch servers");
+      } finally {
+        setServersLoading(false);
+      }
+    }
+    fetchServers();
+  }, [serverSlug]);
 
   if (status === "loading") {
     return (
@@ -62,7 +99,14 @@ function VipContent() {
     return null;
   }
 
+  const selectedServer = servers.find((s) => s.id === selectedServerId);
+
   const handleCheckout = async (type: "monthly" | "wipe") => {
+    if (!selectedServerId) {
+      setError("Please select a server first");
+      return;
+    }
+
     setLoading(type);
     setError(null);
 
@@ -70,7 +114,7 @@ function VipContent() {
       const response = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type }),
+        body: JSON.stringify({ type, serverId: selectedServerId }),
       });
 
       const data = await response.json();
@@ -85,6 +129,16 @@ function VipContent() {
       setLoading(null);
     }
   };
+
+  // Group servers by region for the dropdown
+  const groupedServers = servers.reduce(
+    (acc, s) => {
+      if (!acc[s.region]) acc[s.region] = [];
+      acc[s.region].push(s);
+      return acc;
+    },
+    {} as Record<string, GameServer[]>
+  );
 
   return (
     <div className="min-h-screen bg-dark-950">
@@ -120,7 +174,7 @@ function VipContent() {
           </h1>
           <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
             Everyone gets full access to verified, cheat-free Rust gameplay.
-            VIP is optional and gives you queue priority.
+            VIP is optional and gives you queue priority on a specific server.
           </p>
         </div>
 
@@ -138,6 +192,58 @@ function VipContent() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Server Selection */}
+        <div className="card mb-8 border-rust-600/30">
+          <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            <Server className="h-5 w-5 text-rust-500" />
+            Select Server
+          </h2>
+          <p className="text-sm text-zinc-400 mb-4">
+            VIP is per-server. Choose which server you want queue priority on.
+          </p>
+
+          {serversLoading ? (
+            <div className="flex items-center gap-2 text-zinc-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading servers...
+            </div>
+          ) : (
+            <div className="relative">
+              <select
+                value={selectedServerId}
+                onChange={(e) => setSelectedServerId(e.target.value)}
+                className="w-full appearance-none rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 pr-10 text-white focus:border-rust-500 focus:outline-none focus:ring-1 focus:ring-rust-500"
+              >
+                <option value="">Choose a server...</option>
+                {Object.entries(groupedServers).map(([region, regionServers]) => (
+                  <optgroup key={region} label={region}>
+                    {regionServers.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
+            </div>
+          )}
+
+          {selectedServer && (
+            <p className="mt-3 text-sm text-zinc-400">
+              VIP for <span className="text-white font-medium">{selectedServer.name}</span> ({selectedServer.region})
+            </p>
+          )}
+
+          <p className="mt-3 text-xs text-zinc-500">
+            Want VIP on multiple servers?{" "}
+            <Link href="/servers" className="text-rust-500 hover:text-rust-400">
+              View all servers
+            </Link>{" "}
+            and purchase VIP for each one separately.
+          </p>
         </div>
 
         {/* VIP Pricing Cards */}
@@ -173,8 +279,8 @@ function VipContent() {
 
             <button
               onClick={() => handleCheckout("wipe")}
-              disabled={loading !== null}
-              className="btn-secondary w-full py-3 text-base"
+              disabled={loading !== null || !selectedServerId}
+              className="btn-secondary w-full py-3 text-base disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading === "wipe" ? (
                 <>
@@ -220,8 +326,8 @@ function VipContent() {
 
             <button
               onClick={() => handleCheckout("monthly")}
-              disabled={loading !== null}
-              className="btn-primary w-full py-3 text-base"
+              disabled={loading !== null || !selectedServerId}
+              className="btn-primary w-full py-3 text-base disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading === "monthly" ? (
                 <>
@@ -309,8 +415,17 @@ function VipContent() {
                 What does VIP include?
               </h3>
               <p className="text-sm text-zinc-400">
-                VIP gives you queue priority so you can skip the line on wipe
-                day. All gameplay features are free for everyone.
+                VIP gives you queue priority on a specific server so you can skip
+                the line on wipe day. All gameplay features are free for everyone.
+              </p>
+            </div>
+            <div className="card">
+              <h3 className="font-medium text-white mb-2">
+                Is VIP per-server?
+              </h3>
+              <p className="text-sm text-zinc-400">
+                Yes, VIP is purchased per-server. If you play on multiple servers,
+                you can get VIP on each one separately.
               </p>
             </div>
             <div className="card">
@@ -320,15 +435,6 @@ function VipContent() {
               <p className="text-sm text-zinc-400">
                 Wipe VIP lasts until the next wipe (~35 days). Monthly VIP
                 auto-renews so you always have queue skip.
-              </p>
-            </div>
-            <div className="card">
-              <h3 className="font-medium text-white mb-2">
-                Is ID verification still required?
-              </h3>
-              <p className="text-sm text-zinc-400">
-                Yes, ID verification is required to play (free). It ensures one
-                account per person and prevents ban evaders.
               </p>
             </div>
             <div className="card">

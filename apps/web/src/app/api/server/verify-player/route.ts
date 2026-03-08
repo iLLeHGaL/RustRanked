@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find user by Steam ID
+    // Find user by Steam ID (VIP filtered to this specific server)
     const user = await prisma.user.findUnique({
       where: { steamId },
       include: {
@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
           where: {
             status: "ACTIVE",
             expiresAt: { gt: new Date() },
+            serverId: auth.server!.id,
           },
         },
         bans: {
