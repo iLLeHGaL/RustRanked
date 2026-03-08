@@ -2,9 +2,13 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const servers = [
+const servers: Array<{
+  slug: string; name: string; region: string; category: string;
+  teamLimit: number | null; wipeSchedule: string; mapSize: number;
+  maxPlayers: number; displayOrder: number; ip?: string; port?: number;
+}> = [
   // US Region
-  { slug: "us-main", name: "US Main", region: "US", category: "Main", teamLimit: null, wipeSchedule: "Thursdays 2pm EST", mapSize: 4250, maxPlayers: 300, displayOrder: 1 },
+  { slug: "us-main", name: "US Main", region: "US", category: "Main", teamLimit: null, wipeSchedule: "Thursdays 2pm EST", mapSize: 4250, maxPlayers: 300, displayOrder: 1, ip: "148.113.200.160", port: 28015 },
   { slug: "us-monthly", name: "US Monthly", region: "US", category: "Monthly", teamLimit: null, wipeSchedule: "1st Thursday 2pm EST", mapSize: 4250, maxPlayers: 300, displayOrder: 2 },
   { slug: "us-biweekly", name: "US Biweekly", region: "US", category: "Biweekly", teamLimit: null, wipeSchedule: "Every other Thursday 2pm EST", mapSize: 4000, maxPlayers: 250, displayOrder: 3 },
   { slug: "us-small", name: "US Small", region: "US", category: "Small", teamLimit: 4, wipeSchedule: "Thursdays 2pm EST", mapSize: 3000, maxPlayers: 200, displayOrder: 4 },
@@ -43,6 +47,8 @@ async function main() {
         mapSize: server.mapSize,
         maxPlayers: server.maxPlayers,
         displayOrder: server.displayOrder,
+        ip: server.ip ?? "0.0.0.0",
+        port: server.port ?? 28015 + server.displayOrder,
       },
       create: {
         name: server.name,
@@ -54,8 +60,8 @@ async function main() {
         mapSize: server.mapSize,
         maxPlayers: server.maxPlayers,
         displayOrder: server.displayOrder,
-        ip: "0.0.0.0",
-        port: 28015 + server.displayOrder,
+        ip: server.ip ?? "0.0.0.0",
+        port: server.port ?? 28015 + server.displayOrder,
         apiKeyHash: `placeholder-${server.slug}`,
       },
     });
