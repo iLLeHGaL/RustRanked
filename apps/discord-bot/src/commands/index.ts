@@ -4,7 +4,7 @@ import {
   EmbedBuilder,
   PermissionFlagsBits,
 } from "discord.js";
-import { prisma, VerificationStatus, SubscriptionStatus, SeasonStatus } from "@rustranked/database";
+import { prisma, VerificationStatus, SeasonStatus } from "@rustranked/database";
 import { removeAllRustRankedRoles } from "../services/role-sync.js";
 
 const WEB_URL = process.env.WEB_URL || "https://rustranked.com";
@@ -21,7 +21,14 @@ export const commands = [
 
       const user = await prisma.user.findUnique({
         where: { discordId: interaction.user.id },
-        include: { subscription: true },
+        include: {
+          vipAccess: {
+            where: {
+              status: "ACTIVE",
+              expiresAt: { gt: new Date() },
+            },
+          },
+        },
       });
 
       if (!user) {
@@ -42,9 +49,8 @@ export const commands = [
 
       const isVerified =
         user.verificationStatus === VerificationStatus.VERIFIED;
-      const isSubscribed =
-        user.subscription?.status === SubscriptionStatus.ACTIVE;
-      const canPlay = isVerified && isSubscribed && user.steamId;
+      const hasVip = user.vipAccess.length > 0;
+      const canPlay = isVerified && !!user.steamId;
 
       const embed = new EmbedBuilder()
         .setColor(canPlay ? 0x00ff00 : 0xffaa00)
@@ -68,10 +74,10 @@ export const commands = [
             inline: true,
           },
           {
-            name: "Subscription",
-            value: isSubscribed
-              ? `Active (until ${new Date(user.subscription!.currentPeriodEnd).toLocaleDateString()})`
-              : `Inactive\n[Subscribe](${WEB_URL}/subscribe)`,
+            name: "VIP",
+            value: hasVip
+              ? `Active (${user.vipAccess[0].type === "MONTHLY" ? "Monthly" : "Wipe"})`
+              : `None\n[Get VIP](${WEB_URL}/vip)`,
             inline: true,
           }
         )
@@ -79,7 +85,7 @@ export const commands = [
           name: "Server Access",
           value: canPlay
             ? "You can join RustRanked servers!"
-            : "Complete the steps above to play",
+            : "Complete the steps above to play (free!)",
         });
 
       await interaction.editReply({ embeds: [embed] });
@@ -96,7 +102,7 @@ export const commands = [
       const embed = new EmbedBuilder()
         .setColor(0xcd4832)
         .setTitle("Link Your Accounts")
-        .setDescription("Connect your accounts to start playing on RustRanked!")
+        .setDescription("Connect your accounts to start playing on RustRanked! It's free!")
         .addFields(
           {
             name: "Step 1: Sign In",
@@ -107,12 +113,12 @@ export const commands = [
             value: `Connect your Steam account on your [dashboard](${WEB_URL}/dashboard)`,
           },
           {
-            name: "Step 3: Subscribe",
-            value: `Get a monthly subscription at [${WEB_URL}/subscribe](${WEB_URL}/subscribe)`,
+            name: "Step 3: Verify ID",
+            value: `Complete ID verification at [${WEB_URL}/verify](${WEB_URL}/verify)`,
           },
           {
-            name: "Step 4: Verify ID",
-            value: `Complete ID verification at [${WEB_URL}/verify](${WEB_URL}/verify)`,
+            name: "Optional: Get VIP",
+            value: `Skip the queue with [VIP](${WEB_URL}/vip) ($5/wipe or $10/mo)`,
           }
         )
         .setFooter({ text: "Your roles will sync automatically once complete!" });
@@ -132,7 +138,6 @@ export const commands = [
 
       const user = await prisma.user.findUnique({
         where: { discordId: interaction.user.id },
-        include: { subscription: true },
       });
 
       if (!user) {
@@ -169,7 +174,6 @@ export const commands = [
       const level = playerSeason?.currentLevel ?? 0;
       const xp = playerSeason?.currentXp ?? 0;
       const streak = playerSeason?.loginStreak ?? 0;
-      const hasPremium = user.subscription?.status === SubscriptionStatus.ACTIVE;
 
       const embed = new EmbedBuilder()
         .setColor(0xcd4832)
@@ -189,11 +193,6 @@ export const commands = [
           {
             name: "Login Streak",
             value: `${streak} days 🔥`,
-            inline: true,
-          },
-          {
-            name: "Premium",
-            value: hasPremium ? "✅ Active" : `❌ [Subscribe](${WEB_URL}/subscribe)`,
             inline: true,
           }
         )
@@ -242,10 +241,7 @@ export const commands = [
         return;
       }
 
-      // Call the daily login API via internal web URL
-      const webUrl = process.env.WEB_INTERNAL_URL || WEB_URL;
       try {
-        // Use the same logic inline since we can't easily call the web API from bot
         let playerSeason = await prisma.playerSeason.findUnique({
           where: {
             userId_seasonId: {

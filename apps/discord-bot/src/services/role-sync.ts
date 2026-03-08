@@ -2,23 +2,26 @@ import { GuildMember } from "discord.js";
 import {
   User,
   Subscription,
+  VipAccess,
   VerificationStatus,
-  SubscriptionStatus,
 } from "@rustranked/database";
 
-type UserWithSubscription = User & {
+type UserWithVip = User & {
   subscription: Subscription | null;
+  vipAccess?: VipAccess[];
 };
 
 export async function syncUserRoles(
   member: GuildMember,
-  user: UserWithSubscription
+  user: UserWithVip
 ): Promise<void> {
   const verifiedRoleId = process.env.VERIFIED_ROLE_ID;
-  const subscriberRoleId = process.env.SUBSCRIBER_ROLE_ID;
+  const vipRoleId = process.env.VIP_ROLE_ID || process.env.SUBSCRIBER_ROLE_ID;
 
   const isVerified = user.verificationStatus === VerificationStatus.VERIFIED;
-  const isSubscribed = user.subscription?.status === SubscriptionStatus.ACTIVE;
+  const hasVip = user.vipAccess?.some(
+    (v) => v.status === "ACTIVE" && new Date(v.expiresAt) > new Date()
+  ) ?? false;
 
   const rolesToAdd: string[] = [];
   const rolesToRemove: string[] = [];
@@ -32,12 +35,12 @@ export async function syncUserRoles(
     }
   }
 
-  // Subscriber role
-  if (subscriberRoleId) {
-    if (isSubscribed && !member.roles.cache.has(subscriberRoleId)) {
-      rolesToAdd.push(subscriberRoleId);
-    } else if (!isSubscribed && member.roles.cache.has(subscriberRoleId)) {
-      rolesToRemove.push(subscriberRoleId);
+  // VIP role
+  if (vipRoleId) {
+    if (hasVip && !member.roles.cache.has(vipRoleId)) {
+      rolesToAdd.push(vipRoleId);
+    } else if (!hasVip && member.roles.cache.has(vipRoleId)) {
+      rolesToRemove.push(vipRoleId);
     }
   }
 
@@ -60,14 +63,14 @@ export async function removeAllRustRankedRoles(
   const rolesToRemove: string[] = [];
 
   const verifiedRoleId = process.env.VERIFIED_ROLE_ID;
-  const subscriberRoleId = process.env.SUBSCRIBER_ROLE_ID;
+  const vipRoleId = process.env.VIP_ROLE_ID || process.env.SUBSCRIBER_ROLE_ID;
 
   if (verifiedRoleId && member.roles.cache.has(verifiedRoleId)) {
     rolesToRemove.push(verifiedRoleId);
   }
 
-  if (subscriberRoleId && member.roles.cache.has(subscriberRoleId)) {
-    rolesToRemove.push(subscriberRoleId);
+  if (vipRoleId && member.roles.cache.has(vipRoleId)) {
+    rolesToRemove.push(vipRoleId);
   }
 
   if (rolesToRemove.length > 0) {

@@ -16,6 +16,21 @@ export async function sendNotification(embed: EmbedBuilder) {
   }
 }
 
+export function createVipActivatedEmbed(
+  discordName: string,
+  discordAvatar: string | null,
+  vipType: string
+): EmbedBuilder {
+  const typeLabel = vipType === "monthly" ? "Monthly" : "Wipe";
+  return new EmbedBuilder()
+    .setColor(0xfbbf24)
+    .setTitle("⭐ New VIP!")
+    .setDescription(`**${discordName}** just activated VIP ${typeLabel}!`)
+    .setThumbnail(discordAvatar || null)
+    .setTimestamp();
+}
+
+// Legacy - kept for backward compat
 export function createNewSubscriberEmbed(
   discordName: string,
   discordAvatar: string | null

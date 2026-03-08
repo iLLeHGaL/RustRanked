@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
 
   try {
     switch (event.type) {
-      // Checkout completed - create subscription record
+      // Checkout completed - create VIP or subscription record
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         await handleCheckoutComplete(session);
@@ -100,15 +100,12 @@ export async function POST(request: NextRequest) {
 async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
   const userId = session.metadata?.userId;
   const customerId = session.customer as string;
-  const subscriptionId = session.subscription as string;
+  const vipType = session.metadata?.vipType;
 
-  if (!userId || !subscriptionId) {
-    console.error("Missing userId or subscriptionId in checkout session");
+  if (!userId) {
+    console.error("Missing userId in checkout session");
     return;
   }
-
-  // Get subscription details
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
   // Update user with Stripe customer ID
   await prisma.user.update({
@@ -116,39 +113,105 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     data: { stripeCustomerId: customerId },
   });
 
-  // Create subscription record
-  await prisma.subscription.upsert({
-    where: { userId },
-    update: {
-      stripeSubscriptionId: subscriptionId,
-      stripePriceId: subscription.items.data[0].price.id,
-      status: mapSubscriptionStatus(subscription.status),
-      currentPeriodStart: new Date(subscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
-    },
-    create: {
-      userId,
-      stripeSubscriptionId: subscriptionId,
-      stripePriceId: subscription.items.data[0].price.id,
-      status: mapSubscriptionStatus(subscription.status),
-      currentPeriodStart: new Date(subscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
-    },
-  });
+  if (vipType === "monthly") {
+    // VIP Monthly - subscription-based
+    const subscriptionId = session.subscription as string;
+    if (!subscriptionId) {
+      console.error("Missing subscriptionId for monthly VIP checkout");
+      return;
+    }
 
-  console.log(`Subscription created for user ${userId}`);
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
-  // Notify Discord bot
-  await discordNotify.subscriptionCreated(userId);
+    await prisma.vipAccess.create({
+      data: {
+        userId,
+        type: "MONTHLY",
+        status: "ACTIVE",
+        stripeSubscriptionId: subscriptionId,
+        expiresAt: new Date(subscription.current_period_end * 1000),
+        cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      },
+    });
+
+    console.log(`VIP Monthly created for user ${userId}`);
+    await discordNotify.vipActivated(userId, "monthly");
+  } else if (vipType === "wipe") {
+    // VIP Wipe - one-time payment
+    const paymentIntentId = typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id;
+
+    await prisma.vipAccess.create({
+      data: {
+        userId,
+        type: "WIPE",
+        status: "ACTIVE",
+        stripePaymentId: paymentIntentId || null,
+        expiresAt: new Date(Date.now() + 35 * 24 * 60 * 60 * 1000), // 35 days
+      },
+    });
+
+    console.log(`VIP Wipe created for user ${userId}`);
+    await discordNotify.vipActivated(userId, "wipe");
+  } else {
+    // Fallback: old subscription flow (backward compat for in-flight webhooks)
+    const subscriptionId = session.subscription as string;
+    if (!subscriptionId) {
+      console.error("Missing subscriptionId in legacy checkout session");
+      return;
+    }
+
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+
+    await prisma.subscription.upsert({
+      where: { userId },
+      update: {
+        stripeSubscriptionId: subscriptionId,
+        stripePriceId: subscription.items.data[0].price.id,
+        status: mapSubscriptionStatus(subscription.status),
+        currentPeriodStart: new Date(subscription.current_period_start * 1000),
+        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+        cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      },
+      create: {
+        userId,
+        stripeSubscriptionId: subscriptionId,
+        stripePriceId: subscription.items.data[0].price.id,
+        status: mapSubscriptionStatus(subscription.status),
+        currentPeriodStart: new Date(subscription.current_period_start * 1000),
+        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+        cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      },
+    });
+
+    console.log(`Legacy subscription created for user ${userId}`);
+    await discordNotify.subscriptionCreated(userId);
+  }
 }
 
 async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
-  const userId = subscription.metadata?.userId;
+  // Try VipAccess first
+  const vip = await prisma.vipAccess.findUnique({
+    where: { stripeSubscriptionId: subscription.id },
+  });
 
+  if (vip) {
+    await prisma.vipAccess.update({
+      where: { stripeSubscriptionId: subscription.id },
+      data: {
+        expiresAt: new Date(subscription.current_period_end * 1000),
+        cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        status: subscription.status === "canceled" ? "CANCELED" : "ACTIVE",
+      },
+    });
+    console.log(`VipAccess updated: ${subscription.id}`);
+    return;
+  }
+
+  // Fall back to old Subscription model
+  const userId = subscription.metadata?.userId;
   if (!userId) {
-    // Try to find user by subscription ID
     const existingSub = await prisma.subscription.findUnique({
       where: { stripeSubscriptionId: subscription.id },
     });
@@ -168,10 +231,26 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
     },
   });
 
-  console.log(`Subscription updated: ${subscription.id}`);
+  console.log(`Legacy subscription updated: ${subscription.id}`);
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+  // Try VipAccess first
+  const vip = await prisma.vipAccess.findUnique({
+    where: { stripeSubscriptionId: subscription.id },
+  });
+
+  if (vip) {
+    await prisma.vipAccess.update({
+      where: { stripeSubscriptionId: subscription.id },
+      data: { status: "EXPIRED" },
+    });
+    console.log(`VipAccess expired: ${subscription.id}`);
+    await discordNotify.vipExpired(vip.userId);
+    return;
+  }
+
+  // Fall back to old Subscription model
   const sub = await prisma.subscription.update({
     where: { stripeSubscriptionId: subscription.id },
     data: {
@@ -179,9 +258,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     },
   });
 
-  console.log(`Subscription canceled: ${subscription.id}`);
-
-  // Notify Discord bot
+  console.log(`Legacy subscription canceled: ${subscription.id}`);
   await discordNotify.subscriptionCanceled(sub.userId);
 }
 
@@ -193,6 +270,25 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
       ? invoice.subscription
       : invoice.subscription.id;
 
+  // Try VipAccess first
+  const vip = await prisma.vipAccess.findUnique({
+    where: { stripeSubscriptionId: subscriptionId },
+  });
+
+  if (vip) {
+    const sub = await stripe.subscriptions.retrieve(subscriptionId);
+    await prisma.vipAccess.update({
+      where: { stripeSubscriptionId: subscriptionId },
+      data: {
+        status: "ACTIVE",
+        expiresAt: new Date(sub.current_period_end * 1000),
+      },
+    });
+    console.log(`VipAccess renewed via invoice: ${subscriptionId}`);
+    return;
+  }
+
+  // Fall back to old Subscription model
   await prisma.subscription.update({
     where: { stripeSubscriptionId: subscriptionId },
     data: {
@@ -200,7 +296,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
     },
   });
 
-  console.log(`Invoice paid for subscription: ${subscriptionId}`);
+  console.log(`Invoice paid for legacy subscription: ${subscriptionId}`);
 }
 
 async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
@@ -211,6 +307,18 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
       ? invoice.subscription
       : invoice.subscription.id;
 
+  // Try VipAccess first
+  const vip = await prisma.vipAccess.findUnique({
+    where: { stripeSubscriptionId: subscriptionId },
+  });
+
+  if (vip) {
+    // Keep active but log the failure - Stripe will retry
+    console.log(`VipAccess invoice payment failed: ${subscriptionId}`);
+    return;
+  }
+
+  // Fall back to old Subscription model
   await prisma.subscription.update({
     where: { stripeSubscriptionId: subscriptionId },
     data: {
@@ -218,7 +326,7 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
     },
   });
 
-  console.log(`Invoice payment failed for subscription: ${subscriptionId}`);
+  console.log(`Invoice payment failed for legacy subscription: ${subscriptionId}`);
 }
 
 async function handleVerificationVerified(

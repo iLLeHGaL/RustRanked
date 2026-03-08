@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma, SeasonStatus, SubscriptionStatus } from "@rustranked/database";
+import { prisma, SeasonStatus } from "@rustranked/database";
 import { getSeasonConfig, xpToNextLevel } from "@/lib/xp-engine";
 
 // GET - Return user's battle pass progress for the active season
@@ -20,12 +20,8 @@ export async function GET() {
       return NextResponse.json({ progress: null, season: null });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      include: { subscription: true },
-    });
-
-    const hasPremium = user?.subscription?.status === SubscriptionStatus.ACTIVE;
+    // All players get full battle pass (free-to-play)
+    const hasPremium = true;
 
     // Find or create PlayerSeason
     let playerSeason = await prisma.playerSeason.findUnique({
@@ -45,11 +41,11 @@ export async function GET() {
           hasPremium,
         },
       });
-    } else if (playerSeason.hasPremium !== hasPremium) {
-      // Sync premium status with subscription
+    } else if (!playerSeason.hasPremium) {
+      // Ensure all players have premium access
       playerSeason = await prisma.playerSeason.update({
         where: { id: playerSeason.id },
-        data: { hasPremium },
+        data: { hasPremium: true },
       });
     }
 

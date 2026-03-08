@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
-import { prisma, SeasonStatus } from "@rustranked/database";
+import { prisma } from "@rustranked/database";
 import { DashboardContent } from "./dashboard-content";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,15 @@ export default async function DashboardPage() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    include: { subscription: true },
+    include: {
+      subscription: true,
+      vipAccess: {
+        where: {
+          status: "ACTIVE",
+          expiresAt: { gt: new Date() },
+        },
+      },
+    },
   });
 
   if (!user) {

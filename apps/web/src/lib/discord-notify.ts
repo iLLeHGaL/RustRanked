@@ -42,6 +42,17 @@ export const discordNotify = {
   userCreated: (userId: string) =>
     notifyDiscordBot({ event: "user.created", userId }),
 
+  // VIP events
+  vipActivated: (userId: string, vipType: string) =>
+    notifyDiscordBot({ event: "vip.activated", userId, data: { vipType } }),
+
+  vipCanceled: (userId: string) =>
+    notifyDiscordBot({ event: "vip.canceled", userId }),
+
+  vipExpired: (userId: string) =>
+    notifyDiscordBot({ event: "vip.expired", userId }),
+
+  // Legacy subscription events (kept for backward compat)
   subscriptionCreated: (userId: string) =>
     notifyDiscordBot({ event: "subscription.created", userId }),
 

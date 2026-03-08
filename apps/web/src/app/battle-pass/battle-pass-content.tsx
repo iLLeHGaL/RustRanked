@@ -4,14 +4,12 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Navbar } from "@/components/navbar";
 import {
   Gift,
-  Lock,
   Star,
   Trophy,
   Flame,
   ChevronRight,
   ChevronLeft,
   Check,
-  Crown,
   Calendar,
   Zap,
 } from "lucide-react";
@@ -54,7 +52,7 @@ const rewardIcons: Record<string, React.ComponentType<{ className?: string }>> =
   TOKENS: Star,
   XP: Zap,
   BATTLE_PASS_XP: Zap,
-  COSMETIC: Crown,
+  COSMETIC: Star,
   CASE: Gift,
   VIP_DAYS: Trophy,
   XP_BOOST: Flame,
@@ -278,11 +276,6 @@ export function BattlePassContent() {
                     </div>
                   </div>
                 </div>
-                {progress?.hasPremium && (
-                  <div className="absolute -top-1.5 -right-1.5 h-6 w-6 rounded-full bg-amber-500 flex items-center justify-center border-2 border-dark-950">
-                    <Crown className="h-3 w-3 text-amber-900" />
-                  </div>
-                )}
               </div>
 
               {/* XP Progress */}
@@ -321,16 +314,6 @@ export function BattlePassContent() {
               </div>
             </div>
 
-            {/* Premium Badge */}
-            {progress && !progress.hasPremium && (
-              <div className="mt-4 flex items-center gap-3 px-4 py-3 rounded-lg bg-amber-500/5 border border-amber-500/10">
-                <Crown className="h-4 w-4 text-amber-500 flex-shrink-0" />
-                <p className="text-sm text-zinc-400">
-                  <span className="text-amber-400 font-medium">Premium</span>{" "}
-                  rewards unlock with an active subscription.
-                </p>
-              </div>
-            )}
           </div>
 
           {/* Daily Login Card */}
@@ -490,11 +473,7 @@ export function BattlePassContent() {
           <div className="flex items-center gap-6 mt-4 pt-4 border-t border-zinc-800">
             <div className="flex items-center gap-2 text-xs text-zinc-500">
               <div className="h-3 w-3 rounded bg-zinc-800 border border-zinc-700" />
-              <span>Free</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-zinc-500">
-              <div className="h-3 w-3 rounded bg-amber-500/10 border border-amber-500/30" />
-              <span>Premium</span>
+              <span>Locked</span>
             </div>
             <div className="flex items-center gap-2 text-xs text-zinc-500">
               <div className="h-3 w-3 rounded bg-green-500/20 border border-green-500/40" />
@@ -550,8 +529,7 @@ function TierSlot({
   }
 
   const RewardIcon = rewardIcons[tier.rewardType] || Gift;
-  const isLocked = isPremium && !hasPremiumPass;
-  const canClaim = isReached && !isClaimed && !isLocked && onClaim;
+  const canClaim = isReached && !isClaimed && onClaim;
 
   return (
     <div
@@ -560,23 +538,14 @@ function TierSlot({
           ? "border-green-500/30 bg-green-500/5"
           : canClaim
             ? "border-rust-500/50 bg-rust-500/5 ring-1 ring-rust-500/20 cursor-pointer hover:bg-rust-500/10"
-            : isLocked
-              ? "border-amber-500/20 bg-amber-500/[0.03] opacity-60"
-              : isReached
-                ? "border-zinc-700 bg-zinc-800/50"
-                : isCurrent
-                  ? "border-zinc-700 bg-zinc-800/30"
-                  : "border-zinc-800/60 bg-zinc-900/30 opacity-40"
+            : isReached
+              ? "border-zinc-700 bg-zinc-800/50"
+              : isCurrent
+                ? "border-zinc-700 bg-zinc-800/30"
+                : "border-zinc-800/60 bg-zinc-900/30 opacity-40"
       }`}
       onClick={canClaim ? onClaim : undefined}
     >
-      {/* Lock for premium without pass */}
-      {isLocked && (
-        <div className="absolute top-1 right-1">
-          <Lock className="h-3 w-3 text-amber-500/50" />
-        </div>
-      )}
-
       {/* Claimed Check */}
       {isClaimed && (
         <div className="absolute top-1 right-1">

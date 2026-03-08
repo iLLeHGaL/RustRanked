@@ -85,6 +85,7 @@ namespace Oxide.Plugins
             public int SeasonLevel { get; set; }
             public int SeasonXp { get; set; }
             public bool HasPremium { get; set; }
+            public bool HasVip { get; set; }
         }
 
         private class PlayerStats
@@ -588,15 +589,18 @@ namespace Oxide.Plugins
                     VerifiedAt = DateTime.UtcNow,
                     SeasonLevel = result.SeasonLevel,
                     SeasonXp = result.SeasonXp,
-                    HasPremium = result.HasPremium
+                    HasPremium = result.HasPremium,
+                    HasVip = result.HasVip
                 };
 
-                Puts($"Player {player.Name} verified successfully (Lv.{result.SeasonLevel})");
+                Puts($"Player {player.Name} verified successfully (Lv.{result.SeasonLevel}{(result.HasVip ? ", VIP" : "")})");
+
 
                 if (config.ShowWelcome)
                 {
                     var levelInfo = result.SeasonLevel > 0 ? $" | Level {result.SeasonLevel}" : "";
-                    player.Message($"<color=#cd4832>[RustRanked]</color> Welcome, {player.Name}!{levelInfo} You are verified and ready to play.");
+                    var vipInfo = result.HasVip ? " | <color=#fbbf24>VIP</color>" : "";
+                    player.Message($"<color=#cd4832>[RustRanked]</color> Welcome, {player.Name}!{levelInfo}{vipInfo} You are verified and ready to play.");
                 }
             }
             catch (Exception ex)
@@ -646,7 +650,7 @@ namespace Oxide.Plugins
             var sb = new StringBuilder();
             sb.AppendLine("<color=#cd4832>=== Battle Pass ===</color>");
             sb.AppendLine($"<color=#fbbf24>Level {data.SeasonLevel}</color> | XP: {data.SeasonXp:N0}");
-            sb.AppendLine($"Premium: {(data.HasPremium ? "<color=#4ade80>Active</color>" : "<color=#888>Inactive</color>")}");
+            if (data.HasVip) sb.AppendLine("<color=#fbbf24>VIP Active</color>");
             sb.AppendLine("<color=#888>Visit rustranked.com/battle-pass for details</color>");
             player.Message(sb.ToString());
         }
@@ -659,6 +663,12 @@ namespace Oxide.Plugins
             sb.AppendLine("<color=#888>/rr bp</color> - Show battle pass progress");
             sb.AppendLine("<color=#888>Visit rustranked.com/leaderboard for stats</color>");
             player.Message(sb.ToString());
+        }
+
+        // Public API for queue plugins
+        public bool IsVip(string steamId)
+        {
+            return verifiedPlayers.ContainsKey(steamId) && verifiedPlayers[steamId].HasVip;
         }
 
         #endregion
@@ -687,6 +697,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("hasPremium")]
             public bool HasPremium { get; set; }
+
+            [JsonProperty("hasVip")]
+            public bool HasVip { get; set; }
         }
 
         private class VerifyPlayerData

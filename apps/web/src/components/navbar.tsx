@@ -49,6 +49,12 @@ export function Navbar() {
           >
             Battle Pass
           </Link>
+          <Link
+            href="/vip"
+            className="text-sm text-zinc-400 hover:text-white transition-colors"
+          >
+            VIP
+          </Link>
 
           {isLoading ? (
             <div className="h-9 w-9 bg-zinc-800 rounded-full animate-pulse" />

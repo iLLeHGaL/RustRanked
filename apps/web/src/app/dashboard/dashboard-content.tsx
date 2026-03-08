@@ -7,8 +7,8 @@ import Image from "next/image";
 import {
   User as UserType,
   type Subscription,
+  type VipAccess,
   VerificationStatus,
-  SubscriptionStatus,
 } from "@rustranked/database";
 import {
   Shield,
@@ -27,6 +27,7 @@ import {
   Trophy,
   Zap,
   Flame,
+  Crown,
 } from "lucide-react";
 import { Navbar } from "@/components/navbar";
 
@@ -44,6 +45,7 @@ function getKDRatio(kills: number, deaths: number): string {
 
 type UserWithSubscription = UserType & {
   subscription: Subscription | null;
+  vipAccess: VipAccess[];
 };
 
 export function DashboardContent({ user }: { user: UserWithSubscription }) {
@@ -67,9 +69,9 @@ export function DashboardContent({ user }: { user: UserWithSubscription }) {
   const [claimingDaily, setClaimingDaily] = useState(false);
 
   const isVerified = user.verificationStatus === VerificationStatus.VERIFIED;
-  const hasActiveSubscription =
-    user.subscription?.status === SubscriptionStatus.ACTIVE;
-  const canPlay = isVerified && hasActiveSubscription;
+  const canPlay = isVerified && !!user.steamId;
+  const hasVip = user.vipAccess.length > 0;
+  const activeVip = user.vipAccess[0] ?? null;
 
   useEffect(() => {
     async function fetchWipeStats() {
@@ -151,8 +153,10 @@ export function DashboardContent({ user }: { user: UserWithSubscription }) {
             <p className="text-sm text-green-400">
               {success === "steam_linked" &&
                 "Steam account linked successfully!"}
+              {success === "vip_activated" &&
+                "VIP activated! Enjoy queue priority."}
               {success === "subscribed" &&
-                "Subscription activated! Welcome to RustRanked."}
+                "VIP activated! Enjoy queue priority."}
               {success === "verified" &&
                 "Identity verified successfully!"}
             </p>
@@ -193,6 +197,12 @@ export function DashboardContent({ user }: { user: UserWithSubscription }) {
                     {user.steamName}
                   </span>
                 )}
+                {hasVip && (
+                  <span className="flex items-center gap-1 text-amber-400">
+                    <Crown className="h-4 w-4" />
+                    VIP
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex gap-3">
@@ -200,12 +210,6 @@ export function DashboardContent({ user }: { user: UserWithSubscription }) {
                 <Link href="/verify" className="btn-primary">
                   <Shield className="h-4 w-4 mr-2" />
                   Verify ID
-                </Link>
-              )}
-              {!hasActiveSubscription && (
-                <Link href="/subscribe" className="btn-primary">
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  Subscribe
                 </Link>
               )}
             </div>
@@ -279,40 +283,34 @@ export function DashboardContent({ user }: { user: UserWithSubscription }) {
             </p>
           </StatusCard>
 
-          {/* Subscription Status */}
+          {/* VIP Status */}
           <StatusCard
-            title="Subscription"
-            icon={CreditCard}
-            status={hasActiveSubscription ? "complete" : "required"}
-            statusText={
-              hasActiveSubscription
-                ? "Active"
-                : user.subscription?.status === SubscriptionStatus.PAST_DUE
-                  ? "Past Due"
-                  : "Inactive"
-            }
+            title="VIP"
+            icon={Crown}
+            status={hasVip ? "complete" : "optional"}
+            statusText={hasVip ? "Active" : "Optional"}
             action={
-              hasActiveSubscription ? (
+              hasVip ? (
                 <Link href="/billing" className="btn-secondary text-sm mt-4">
-                  Manage Subscription
+                  Manage VIP
                 </Link>
               ) : (
-                <Link href="/subscribe" className="btn-secondary text-sm mt-4">
-                  Subscribe Now
+                <Link href="/vip" className="btn-secondary text-sm mt-4">
+                  Get VIP
                 </Link>
               )
             }
           >
-            {hasActiveSubscription && user.subscription ? (
+            {hasVip && activeVip ? (
               <p className="text-sm text-zinc-400 mt-2">
-                Renews on{" "}
-                {new Date(
-                  user.subscription.currentPeriodEnd
-                ).toLocaleDateString()}
+                {activeVip.type === "MONTHLY" ? "Monthly" : "Wipe"} VIP &middot;{" "}
+                {activeVip.type === "MONTHLY"
+                  ? `Renews ${new Date(activeVip.expiresAt).toLocaleDateString()}`
+                  : `Expires ${new Date(activeVip.expiresAt).toLocaleDateString()}`}
               </p>
             ) : (
               <p className="text-sm text-zinc-400 mt-2">
-                Subscribe to access ranked servers
+                Queue priority on all servers
               </p>
             )}
           </StatusCard>
@@ -441,7 +439,7 @@ export function DashboardContent({ user }: { user: UserWithSubscription }) {
               </div>
               <div>
                 <h3 className="font-semibold text-white">
-                  You're ready to play!
+                  You&apos;re ready to play!
                 </h3>
                 <p className="text-sm text-zinc-400">
                   Connect to any RustRanked server to start playing.
@@ -461,8 +459,7 @@ export function DashboardContent({ user }: { user: UserWithSubscription }) {
                 </h3>
                 <p className="text-sm text-zinc-400">
                   {!user.steamId && "Link your Steam account. "}
-                  {!isVerified && "Verify your ID. "}
-                  {!hasActiveSubscription && "Subscribe to access servers."}
+                  {!isVerified && "Verify your ID."}
                 </p>
               </div>
             </div>
@@ -483,7 +480,7 @@ function StatusCard({
 }: {
   title: string;
   icon: React.ComponentType<{ className?: string }>;
-  status: "complete" | "pending" | "required" | "error";
+  status: "complete" | "pending" | "required" | "error" | "optional";
   statusText: string;
   children: React.ReactNode;
   action?: React.ReactNode;
@@ -493,6 +490,7 @@ function StatusCard({
     pending: "text-yellow-400 bg-yellow-500/10",
     required: "text-zinc-400 bg-zinc-500/10",
     error: "text-red-400 bg-red-500/10",
+    optional: "text-zinc-400 bg-zinc-500/10",
   };
 
   const StatusIcon = {
@@ -500,6 +498,7 @@ function StatusCard({
     pending: Clock,
     required: AlertCircle,
     error: XCircle,
+    optional: CreditCard,
   }[status];
 
   return (

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyServerRequest } from "@/lib/server-auth";
-import { prisma, VerificationStatus, SubscriptionStatus } from "@rustranked/database";
+import { prisma, VerificationStatus } from "@rustranked/database";
 
 export async function POST(request: NextRequest) {
   // Verify server authentication
@@ -24,7 +24,12 @@ export async function POST(request: NextRequest) {
     const user = await prisma.user.findUnique({
       where: { steamId },
       include: {
-        subscription: true,
+        vipAccess: {
+          where: {
+            status: "ACTIVE",
+            expiresAt: { gt: new Date() },
+          },
+        },
         bans: {
           where: {
             isActive: true,
@@ -64,18 +69,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Check subscription status
-    const hasActiveSubscription =
-      user.subscription?.status === SubscriptionStatus.ACTIVE;
+    // No subscription check - game is free-to-play!
 
-    if (!hasActiveSubscription) {
-      return NextResponse.json({
-        allowed: false,
-        reason: "NO_SUBSCRIPTION",
-        message: "Active subscription required. Subscribe at rustranked.com",
-        subscriptionStatus: user.subscription?.status || "NONE",
-      });
-    }
+    // Check VIP status
+    const hasVip = user.vipAccess.length > 0;
 
     // Fetch season data for response
     let seasonData = {};
@@ -95,7 +92,7 @@ export async function POST(request: NextRequest) {
         seasonData = {
           seasonLevel: playerSeason?.currentLevel ?? 0,
           seasonXp: playerSeason?.currentXp ?? 0,
-          hasPremium: playerSeason?.hasPremium ?? hasActiveSubscription,
+          hasPremium: true, // All players get full battle pass
         };
       }
     } catch {
@@ -105,6 +102,7 @@ export async function POST(request: NextRequest) {
     // User is allowed to play
     return NextResponse.json({
       allowed: true,
+      hasVip,
       player: {
         id: user.id,
         discordName: user.discordName,

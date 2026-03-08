@@ -13,7 +13,15 @@ export default async function BillingPage() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    include: { subscription: true },
+    include: {
+      subscription: true,
+      vipAccess: {
+        where: {
+          status: "ACTIVE",
+          expiresAt: { gt: new Date() },
+        },
+      },
+    },
   });
 
   if (!user) {

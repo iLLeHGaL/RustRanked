@@ -79,17 +79,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check premium gating - filter to claimable tiers
-    const claimableTiers = tiers.filter(
-      (tier) => !tier.isPremium || playerSeason.hasPremium
-    );
-
-    if (claimableTiers.length === 0) {
-      return NextResponse.json(
-        { error: "Premium subscription required for this reward" },
-        { status: 403 }
-      );
-    }
+    // All tiers are claimable (free-to-play, no premium gating)
+    const claimableTiers = tiers;
 
     // Update claimed levels
     await prisma.playerSeason.update({

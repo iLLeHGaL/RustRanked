@@ -9,22 +9,32 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   typescript: true,
 });
 
-export async function createCheckoutSession({
+export async function createVipCheckoutSession({
   userId,
   email,
   customerId,
+  type,
 }: {
   userId: string;
   email?: string | null;
   customerId?: string | null;
+  type: "monthly" | "wipe";
 }) {
-  const priceId = process.env.STRIPE_PRICE_ID;
+  const isMonthly = type === "monthly";
+  const priceId = isMonthly
+    ? process.env.STRIPE_VIP_MONTHLY_PRICE_ID
+    : process.env.STRIPE_VIP_WIPE_PRICE_ID;
+
   if (!priceId) {
-    throw new Error("STRIPE_PRICE_ID is not set");
+    throw new Error(
+      isMonthly
+        ? "STRIPE_VIP_MONTHLY_PRICE_ID is not set"
+        : "STRIPE_VIP_WIPE_PRICE_ID is not set"
+    );
   }
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
+  const sessionParams: Stripe.Checkout.SessionCreateParams = {
+    mode: isMonthly ? "subscription" : "payment",
     payment_method_types: ["card"],
     line_items: [
       {
@@ -32,20 +42,26 @@ export async function createCheckoutSession({
         quantity: 1,
       },
     ],
-    success_url: `${process.env.NEXTAUTH_URL}/dashboard?success=subscribed`,
-    cancel_url: `${process.env.NEXTAUTH_URL}/subscribe?canceled=true`,
+    success_url: `${process.env.NEXTAUTH_URL}/dashboard?success=vip_activated`,
+    cancel_url: `${process.env.NEXTAUTH_URL}/vip?canceled=true`,
     customer: customerId || undefined,
     customer_email: customerId ? undefined : email || undefined,
     metadata: {
       userId,
+      vipType: type,
     },
-    subscription_data: {
+  };
+
+  if (isMonthly) {
+    sessionParams.subscription_data = {
       metadata: {
         userId,
+        vipType: type,
       },
-    },
-  });
+    };
+  }
 
+  const session = await stripe.checkout.sessions.create(sessionParams);
   return session;
 }
 

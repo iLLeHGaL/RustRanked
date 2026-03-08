@@ -4,6 +4,7 @@ import { client } from "../index.js";
 import { syncUserRoles } from "../services/role-sync.js";
 import {
   sendNotification,
+  createVipActivatedEmbed,
   createNewSubscriberEmbed,
   createVerifiedEmbed,
   createNewPlayerEmbed,
@@ -80,10 +81,18 @@ async function handleRequest(
   }
 
   try {
-    // Get user from database
+    // Get user from database with VIP access
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { subscription: true },
+      include: {
+        subscription: true,
+        vipAccess: {
+          where: {
+            status: "ACTIVE",
+            expiresAt: { gt: new Date() },
+          },
+        },
+      },
     });
 
     if (!user) {
@@ -123,6 +132,26 @@ async function handleRequest(
         );
         break;
 
+      // VIP events
+      case "vip.activated": {
+        if (member) {
+          await syncUserRoles(member, user);
+        }
+        const vipType = (data?.vipType as string) || "monthly";
+        await sendNotification(
+          createVipActivatedEmbed(user.discordName, user.discordAvatar, vipType)
+        );
+        break;
+      }
+
+      case "vip.canceled":
+      case "vip.expired":
+        if (member) {
+          await syncUserRoles(member, user);
+        }
+        break;
+
+      // Legacy subscription events (backward compat)
       case "subscription.created":
       case "subscription.renewed":
         if (member) {

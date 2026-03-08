@@ -39,7 +39,8 @@ model User {
   stripeCustomerId String? @unique
 
   // Relations
-  subscription  Subscription?
+  subscription  Subscription?   // @deprecated - use vipAccess instead
+  vipAccess     VipAccess[]
   sessions      Session[]
   bans          Ban[]
   votes         Vote[]
@@ -76,6 +77,7 @@ model Session {
 // SUBSCRIPTION & PAYMENTS
 // ============================================
 
+// @deprecated - kept for backward compatibility with in-flight webhooks
 model Subscription {
   id                 String    @id @default(cuid())
   createdAt          DateTime  @default(now())
@@ -94,6 +96,38 @@ model Subscription {
   currentPeriodEnd   DateTime
   cancelAtPeriodEnd  Boolean   @default(false)
 
+  @@index([status])
+}
+
+enum VipType {
+  MONTHLY
+  WIPE
+}
+
+enum VipStatus {
+  ACTIVE
+  EXPIRED
+  CANCELED
+}
+
+model VipAccess {
+  id                   String    @id @default(cuid())
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  userId               String
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type                 VipType
+  status               VipStatus @default(ACTIVE)
+
+  stripeSubscriptionId String?   @unique  // Only for MONTHLY
+  stripePaymentId      String?   @unique  // Only for WIPE
+
+  expiresAt            DateTime
+  cancelAtPeriodEnd    Boolean   @default(false)
+
+  @@index([userId])
   @@index([status])
 }
 
