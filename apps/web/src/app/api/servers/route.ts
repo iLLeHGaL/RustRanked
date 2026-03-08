@@ -20,6 +20,8 @@ export async function GET() {
         maxPlayers: true,
         displayOrder: true,
         connectUrl: true,
+        ip: true,
+        port: true,
       },
       orderBy: { displayOrder: "asc" },
     });

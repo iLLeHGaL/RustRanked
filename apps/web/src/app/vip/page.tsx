@@ -214,11 +214,11 @@ function VipContent() {
               <select
                 value={selectedServerId}
                 onChange={(e) => setSelectedServerId(e.target.value)}
-                className="w-full appearance-none rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 pr-10 text-white focus:border-rust-500 focus:outline-none focus:ring-1 focus:ring-rust-500"
+                className="w-full appearance-none rounded-lg border border-zinc-700 bg-zinc-800/80 px-4 py-3.5 pr-12 text-white text-sm font-medium focus:border-rust-500 focus:outline-none focus:ring-2 focus:ring-rust-500/30 hover:border-zinc-600 transition-all cursor-pointer shadow-sm"
               >
-                <option value="">Choose a server...</option>
+                <option value="" className="text-zinc-400">Choose a server...</option>
                 {Object.entries(groupedServers).map(([region, regionServers]) => (
-                  <optgroup key={region} label={region}>
+                  <optgroup key={region} label={`\u2014 ${region} \u2014`}>
                     {regionServers.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name}
@@ -227,7 +227,9 @@ function VipContent() {
                   </optgroup>
                 ))}
               </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center h-6 w-6 rounded bg-zinc-700/50 pointer-events-none">
+                <ChevronDown className="h-4 w-4 text-zinc-300" />
+              </div>
             </div>
           )}
 
