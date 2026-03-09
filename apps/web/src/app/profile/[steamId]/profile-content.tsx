@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import { Navbar } from "@/components/navbar";
 import { RankBadge } from "@/components/rank-badge";
-import { TrophyCard } from "@/components/trophy-card";
 import { getKDRatio } from "@/lib/utils";
 import { Trophy } from "lucide-react";
 
@@ -170,7 +169,7 @@ export function ProfileContent({
         {/* Profile Header */}
         <div className="card mb-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-            <div className="relative">
+            <a href={`https://steamcommunity.com/profiles/${user.steamId}`} target="_blank" rel="noopener noreferrer" className="relative block">
               {user.discordAvatar ? (
                 <Image
                   src={user.discordAvatar}
@@ -189,12 +188,14 @@ export function ProfileContent({
                   <Crown className="h-3.5 w-3.5 text-white" />
                 </div>
               )}
-            </div>
+            </a>
             <div className="flex-1">
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-white">
-                  {user.steamName ?? user.discordName}
-                </h1>
+                <a href={`https://steamcommunity.com/profiles/${user.steamId}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                  <h1 className="text-2xl font-bold text-white">
+                    {user.steamName ?? user.discordName}
+                  </h1>
+                </a>
                 <RankBadge hours={stats.totalHours} size="sm" />
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-4 text-sm text-zinc-400">
@@ -216,12 +217,12 @@ export function ProfileContent({
                 )}
               </div>
               {/* Trophy Counts */}
-              <div className="mt-2 flex items-center gap-3">
+              <Link href={`/trophies/${user.steamId}`} className="mt-2 flex items-center gap-3 hover:opacity-80 transition-opacity">
                 <TrophyBadge label="Champion" count={championCount} color="text-purple-400" bg="bg-purple-400/10" />
                 <TrophyBadge label="Gold" count={goldCount} color="text-yellow-400" bg="bg-yellow-400/10" />
                 <TrophyBadge label="Silver" count={silverCount} color="text-zinc-300" bg="bg-zinc-300/10" />
                 <TrophyBadge label="Bronze" count={bronzeCount} color="text-orange-600" bg="bg-orange-600/10" />
-              </div>
+              </Link>
             </div>
 
             {/* Friend action buttons (non-owner) */}
@@ -279,27 +280,6 @@ export function ProfileContent({
           <div className="card mb-8 p-8 text-center">
             <EyeOff className="h-8 w-8 text-zinc-500 mx-auto mb-3" />
             <p className="text-zinc-400">This player has hidden their stats.</p>
-          </div>
-        )}
-
-        {/* Trophies */}
-        <h2 className="text-xl font-bold text-white mb-4">Trophies</h2>
-        {trophies.length > 0 ? (
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mb-8">
-            {trophies.map((trophy) => (
-              <TrophyCard
-                key={trophy.id}
-                rank={trophy.rank}
-                category={trophy.category}
-                statValue={trophy.statValue}
-                serverName={trophy.serverName}
-                wipeId={trophy.wipeId}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="card mb-8 p-6 text-center">
-            <p className="text-zinc-400">No trophies earned yet. Finish in the top 3 of a wipe category to earn a trophy!</p>
           </div>
         )}
 
