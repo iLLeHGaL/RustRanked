@@ -36,6 +36,29 @@ type SortField = (typeof VALID_SORT_FIELDS)[number];
 // Fields that can be summed in groupBy (all Int fields)
 const SUMMABLE_FIELDS = VALID_SORT_FIELDS.filter((f) => f !== "hoursPlayed");
 
+// The Oxide plugin may store serverType in a different format than the
+// GameServer slug (e.g. "US_MAIN" vs "us-main"). This resolves the slug
+// to whatever format exists in the database.
+async function resolveServerType(slug: string): Promise<string> {
+  // Check if exact slug has data
+  const exact = await prisma.wipeStats.findFirst({
+    where: { serverType: slug },
+    select: { serverType: true },
+  });
+  if (exact) return exact.serverType;
+
+  // Try uppercase + underscore variant (us-main → US_MAIN)
+  const upper = slug.toUpperCase().replace(/-/g, "_");
+  const variant = await prisma.wipeStats.findFirst({
+    where: { serverType: upper },
+    select: { serverType: true },
+  });
+  if (variant) return variant.serverType;
+
+  // Fall back to the slug as-is
+  return slug;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
@@ -54,9 +77,14 @@ export async function GET(request: NextRequest) {
     return handleOverallMode(sort, order, limit);
   }
 
+  // Resolve the serverType stored in WipeStats — the Oxide plugin may use
+  // a different format (e.g. "US_MAIN") than the GameServer slug ("us-main").
+  // Try exact match first, then uppercase+underscore variant.
+  const serverType = await resolveServerType(server);
+
   // Get available wipes for this server (newest first)
   const availableWipesRaw = await prisma.wipeStats.findMany({
-    where: { serverType: server },
+    where: { serverType },
     select: { wipeId: true },
     distinct: ["wipeId"],
     orderBy: { updatedAt: "desc" },
@@ -76,7 +104,7 @@ export async function GET(request: NextRequest) {
   // Get top players sorted by the requested field
   const stats = await prisma.wipeStats.findMany({
     where: {
-      serverType: server,
+      serverType,
       wipeId,
     },
     orderBy: { [sort]: order },
