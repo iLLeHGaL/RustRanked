@@ -11,6 +11,7 @@ import {
   HelpCircle,
   LogOut,
   ShieldCheck,
+  Vote,
 } from "lucide-react";
 
 interface UserMenuProps {
@@ -118,6 +119,14 @@ export function UserMenu({ user, steamId }: UserMenuProps) {
             >
               <ShieldCheck className="h-4 w-4" />
               Verify
+            </Link>
+            <Link
+              href="/map-voting"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-3 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
+            >
+              <Vote className="h-4 w-4" />
+              Map Voting
             </Link>
             <Link
               href="/billing"

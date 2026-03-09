@@ -51,12 +51,6 @@ export function Navbar() {
             FAQ
           </Link>
           <Link
-            href="/map-voting"
-            className="text-sm text-zinc-400 hover:text-white transition-colors"
-          >
-            Map Voting
-          </Link>
-          <Link
             href="/vip"
             className="text-sm text-zinc-400 hover:text-white transition-colors"
           >
