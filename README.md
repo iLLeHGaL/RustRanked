@@ -1,15 +1,17 @@
 # RustRanked
 
-A FACEIT-like competitive gaming platform for Rust with ID verification, ELO rankings, subscriptions, and Discord integration.
+A competitive gaming platform for Rust with ID verification, per-server VIP, battle pass progression, leaderboards, and Discord integration.
 
 ## Features
 
-- **ID Verified Players** - Government ID verification via Stripe Identity prevents cheaters and smurfs
-- **ELO Ranking System** - Skill-based matchmaking with 7 rank tiers (Bronze → Grandmaster)
-- **Monthly Subscriptions** - Stripe-powered payments for server access
-- **Discord Integration** - Automatic role sync, slash commands, and notifications
-- **Rust Server Plugin** - Oxide/uMod plugin for player verification and stat tracking
-- **Leaderboards** - Public rankings and player statistics
+- **Free-to-Play** - No subscription required to play. Register, verify, and you're in
+- **ID Verification** - Government ID verification via Stripe Identity prevents cheaters and alt accounts
+- **Per-Server VIP** - $10/month or $5/wipe per individual server for queue priority
+- **Battle Pass** - Season-based XP system with tiers and rewards
+- **Leaderboards** - 12 stat categories with grouped server selector, wipe history, and all-time aggregation
+- **Identity Anti-Cheat** - SHA-256 fingerprinting to detect alt accounts and ban evasion
+- **Discord Integration** - Role sync, slash commands, and event notifications
+- **Carbon Plugin** - Server plugin for player verification, stat tracking, and XP awards
 
 ## Tech Stack
 
@@ -17,11 +19,12 @@ A FACEIT-like competitive gaming platform for Rust with ID verification, ELO ran
 |-----------|------------|
 | Web Framework | Next.js 15 (App Router) |
 | Language | TypeScript |
-| Database | PostgreSQL + Prisma |
+| Database | PostgreSQL (Neon) + Prisma v6 |
 | Authentication | NextAuth.js (Discord + Steam) |
-| Payments | Stripe (Subscriptions + Identity) |
+| Payments | Stripe (VIP + Identity Verification) |
 | Styling | Tailwind CSS |
 | Discord Bot | Discord.js |
+| Game Server | Carbon modding framework |
 | Monorepo | pnpm + Turborepo |
 
 ## Project Structure
@@ -31,27 +34,35 @@ rustranked/
 ├── apps/
 │   ├── web/                      # Next.js web application
 │   │   ├── src/
-│   │   │   ├── app/              # Pages and API routes
-│   │   │   │   ├── (auth)/       # Login pages
+│   │   │   ├── app/
 │   │   │   │   ├── dashboard/    # User dashboard
-│   │   │   │   ├── subscribe/    # Subscription page
+│   │   │   │   ├── leaderboard/  # Public leaderboard (server dropdown + wipe selector)
+│   │   │   │   ├── servers/      # Server listing page
+│   │   │   │   ├── vip/          # VIP purchase page
+│   │   │   │   ├── battle-pass/  # Battle pass progress
 │   │   │   │   ├── verify/       # ID verification
 │   │   │   │   ├── billing/      # Billing management
-│   │   │   │   ├── leaderboard/  # Public leaderboard
+│   │   │   │   ├── map-voting/   # Map voting
 │   │   │   │   └── api/
 │   │   │   │       ├── auth/     # NextAuth endpoints
-│   │   │   │       ├── stripe/   # Payment endpoints
+│   │   │   │       ├── stripe/   # Payment + verification endpoints
 │   │   │   │       ├── steam/    # Steam linking
 │   │   │   │       ├── server/   # Game server API
+│   │   │   │       ├── stats/    # Stats tracking
+│   │   │   │       ├── leaderboard/ # Leaderboard API
+│   │   │   │       ├── battle-pass/ # Battle pass API
+│   │   │   │       ├── xp/       # XP batch awards
 │   │   │   │       ├── admin/    # Admin endpoints
 │   │   │   │       └── webhooks/ # Stripe webhooks
 │   │   │   ├── components/
-│   │   │   └── lib/              # Utilities
+│   │   │   └── lib/
 │   │   │       ├── auth.ts
 │   │   │       ├── stripe.ts
-│   │   │       ├── elo.ts
 │   │   │       ├── steam.ts
-│   │   │       └── server-auth.ts
+│   │   │       ├── server-auth.ts
+│   │   │       ├── xp-engine.ts
+│   │   │       ├── identity-fingerprint.ts
+│   │   │       └── discord-notify.ts
 │   │   └── package.json
 │   │
 │   └── discord-bot/              # Discord bot
@@ -59,18 +70,19 @@ rustranked/
 │       │   ├── index.ts          # Bot entry
 │       │   ├── commands/         # Slash commands
 │       │   ├── services/         # Role sync, notifications
-│       │   └── api/              # Webhook receiver
+│       │   └── api/              # HTTP API server
 │       └── package.json
 │
 ├── packages/
 │   └── database/                 # Shared Prisma schema
 │       ├── prisma/
-│       │   └── schema.prisma
+│       │   ├── schema.prisma
+│       │   └── seed.ts           # Server seed script
 │       └── package.json
 │
-├── oxide/
+├── carbon/
 │   └── plugins/
-│       └── RustRanked.cs         # Rust server plugin
+│       └── RustRanked.cs         # Rust server plugin (Carbon)
 │
 ├── package.json
 ├── pnpm-workspace.yaml
@@ -96,7 +108,6 @@ pnpm install
 ### 2. Set Up Environment Variables
 
 ```bash
-# Copy example env files
 cp .env.example apps/web/.env.local
 cp apps/discord-bot/.env.example apps/discord-bot/.env
 ```
@@ -110,7 +121,14 @@ pnpm db:generate
 pnpm db:push
 ```
 
-### 4. Run Development Servers
+### 4. Seed Servers
+
+```bash
+cd packages/database
+npx tsx prisma/seed.ts
+```
+
+### 5. Run Development Servers
 
 ```bash
 # Run everything
@@ -121,7 +139,7 @@ pnpm --filter @rustranked/web dev
 pnpm --filter @rustranked/discord-bot dev
 ```
 
-### 5. Deploy Discord Commands
+### 6. Deploy Discord Commands
 
 ```bash
 cd apps/discord-bot
@@ -150,11 +168,16 @@ STEAM_API_KEY=""
 # Stripe
 STRIPE_SECRET_KEY=""
 STRIPE_WEBHOOK_SECRET=""
-STRIPE_PRICE_ID=""
+STRIPE_VIP_MONTHLY_PRICE_ID=""
+STRIPE_VIP_WIPE_PRICE_ID=""
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=""
 
 # Server API
 SERVER_API_SECRET=""
+STATS_API_KEY=""
+
+# Identity Anti-Cheat
+IDENTITY_FINGERPRINT_SALT=""
 
 # Admin
 ADMIN_DISCORD_IDS="123456789,987654321"
@@ -174,16 +197,7 @@ DISCORD_GUILD_ID=""
 
 # Roles
 VERIFIED_ROLE_ID=""
-SUBSCRIBER_ROLE_ID=""
-
-# Rank Roles (optional)
-BRONZE_ROLE_ID=""
-SILVER_ROLE_ID=""
-GOLD_ROLE_ID=""
-PLATINUM_ROLE_ID=""
-DIAMOND_ROLE_ID=""
-MASTER_ROLE_ID=""
-GRANDMASTER_ROLE_ID=""
+VIP_ROLE_ID=""
 
 # Database
 DATABASE_URL=""
@@ -195,71 +209,48 @@ NOTIFICATIONS_CHANNEL_ID=""
 WEB_URL="https://rustranked.com"
 ```
 
-## Account Setup Guide
-
-### 1. Discord Developer Application
-
-1. Go to https://discord.com/developers/applications
-2. Create new application "RustRanked"
-3. OAuth2 → Add redirect: `http://localhost:3000/api/auth/callback/discord`
-4. Copy Client ID and Client Secret
-5. Bot → Create bot, copy token
-
-### 2. Stripe Account
-
-1. Sign up at https://stripe.com
-2. Enable Identity in product settings
-3. Create Product → Price ($15-25/month subscription)
-4. Copy API keys from Developers section
-5. Set up webhook: `https://yourdomain.com/api/webhooks/stripe`
-   - Events: `checkout.session.completed`, `customer.subscription.*`, `invoice.*`, `identity.verification_session.*`
-
-### 3. Steam API Key
-
-1. Go to https://steamcommunity.com/dev/apikey
-2. Register for API key
-
-### 4. Database (Neon)
-
-1. Sign up at https://neon.tech
-2. Create project "rustranked"
-3. Copy connection string
-
 ## API Endpoints
 
-### Server API (for Rust plugin)
+### Server API (for Carbon plugin)
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/server/verify-player` | POST | Check if player can join |
-| `/api/server/report-stats` | POST | Report kills/deaths |
-| `/api/server/match/start` | POST | Start a ranked match |
-| `/api/server/match/end` | POST | End match, calculate ELO |
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/server/verify-player` | POST | Bearer token | Verify player on connect |
+| `/api/stats/update` | POST | API key in body | Update single player stats |
+| `/api/stats/update` | PUT | API key in body | Batch update multiple players |
+| `/api/xp/batch-award` | PUT | API key in body | Batch award XP |
 
 ### Admin API
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/admin/servers` | GET | List all servers |
-| `/api/admin/servers` | POST | Register new server |
-| `/api/admin/servers/[id]` | PATCH | Update server |
-| `/api/admin/servers/[id]` | DELETE | Remove server |
+| `/api/admin/servers` | GET/POST | List/register servers |
+| `/api/admin/servers/[id]` | PATCH/DELETE | Update/remove server |
+| `/api/admin/seasons` | GET/POST | Manage battle pass seasons |
+| `/api/admin/battle-pass/tiers` | GET/POST | Manage battle pass tiers |
+| `/api/admin/identity-flags` | GET/PATCH | Review identity flags |
+| `/api/admin/expire-wipe-vip` | POST | Expire wipe VIP access |
 
-## Rust Server Plugin
+## Carbon Plugin
 
 ### Installation
 
-1. Install Oxide/uMod on your Rust server
-2. Copy `oxide/plugins/RustRanked.cs` to your server's `oxide/plugins/` folder
-3. Restart server or run `oxide.reload RustRanked`
-4. Edit `oxide/config/RustRanked.json`:
+1. Install [Carbon](https://carbonmod.gg) on your Rust server
+2. Copy `carbon/plugins/RustRanked.cs` to your server's `carbon/plugins/` folder
+3. Restart server or run `c.reload RustRanked`
+4. Edit `carbon/configs/RustRanked.json`:
 
 ```json
 {
   "API URL": "https://rustranked.com/api",
   "API Key": "YOUR_SERVER_API_KEY",
+  "Stats API Key": "YOUR_STATS_API_KEY",
+  "Server Type": "US_MAIN",
+  "Wipe ID": "wipe_2026_03_07",
   "Kick Unverified Players": true,
-  "Show Welcome Message": true
+  "Show Welcome Message": true,
+  "Check Interval (seconds)": 30.0,
+  "Stats Report Interval (seconds)": 300.0
 }
 ```
 
@@ -267,104 +258,62 @@ WEB_URL="https://rustranked.com"
 
 | Command | Description |
 |---------|-------------|
-| `/rr stats` | View your stats |
-| `/rr top` | View online leaderboard |
+| `/rr` or `/rustranked` | Show help menu |
 | `/rr verify` | Re-verify account |
+| `/rr bp` or `/rr battlepass` | Show battle pass progress |
+
+### Queue Plugin API
+
+Other plugins can check VIP status:
+
+```csharp
+bool isVip = (bool)plugins.Find("RustRanked").Call("IsVip", player.UserIDString);
+```
 
 ## Discord Bot Commands
 
 | Command | Description |
 |---------|-------------|
-| `/status` | Check account status |
-| `/stats [user]` | View player stats |
-| `/leaderboard` | Top 10 players |
-| `/link` | Account linking instructions |
-
-## ELO System
-
-### Rank Tiers
-
-| Rank | ELO Range | Color |
-|------|-----------|-------|
-| Bronze | 0-799 | #CD7F32 |
-| Silver | 800-1199 | #C0C0C0 |
-| Gold | 1200-1599 | #FFD700 |
-| Platinum | 1600-1999 | #E5E4E2 |
-| Diamond | 2000-2399 | #B9F2FF |
-| Master | 2400-2799 | #9966CC |
-| Grandmaster | 2800+ | #FF4500 |
-
-### K-Factor
-
-- New players (< 10 matches): 40
-- Regular players: 24
-- Veterans (> 100 matches): 16
+| `/battlepass` | View battle pass progress |
+| `/daily` | Claim daily login reward |
 
 ## Deployment
 
 ### Web App (Vercel)
 
 ```bash
-# Install Vercel CLI
 npm i -g vercel
-
-# Deploy
 cd apps/web
 vercel
 ```
 
-### Discord Bot (Railway)
-
-1. Create project at https://railway.app
-2. Connect GitHub repo
-3. Set root directory to `apps/discord-bot`
-4. Add environment variables
-5. Deploy
-
-### Recommended Architecture
+### Architecture
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Vercel    │────▶│    Neon     │◀────│   Railway   │
-│  (Next.js)  │     │ (PostgreSQL)│     │ (Discord)   │
-└─────────────┘     └─────────────┘     └─────────────┘
-       │                                       │
-       ▼                                       │
-┌─────────────┐                               │
-│   Stripe    │                               │
-└─────────────┘                               │
-       │                                       │
-       └───────────────────────────────────────┘
-                         │
-                         ▼
-                ┌─────────────────┐
-                │   Rust Server   │
-                │  (Self-hosted)  │
-                └─────────────────┘
+┌─────────────┐     verify-player      ┌──────────────────┐
+│  Rust Game   │ ──────────────────────→ │   Next.js Web    │
+│   Server     │     stats/update       │  (Vercel)        │
+│  + Carbon    │ ──────────────────────→ │                  │
+│  + Plugin    │ ←────────────────────── │  PostgreSQL      │
+│              │   allowed/denied/VIP    │  (Neon)          │
+└─────────────┘                         └────────┬─────────┘
+                                                 │
+                                        discord-notify
+                                                 │
+                                                 ▼
+                                        ┌──────────────────┐
+                                        │  Discord Bot     │
+                                        │  (HTTP API)      │
+                                        └──────────────────┘
 ```
 
-## Cost Estimates
+## Security
 
-| Service | Free Tier | Growth |
-|---------|-----------|--------|
-| Vercel | Hobby (free) | Pro $20/mo |
-| Neon PostgreSQL | 0.5GB free | $19/mo |
-| Railway | $5 credits | ~$5-10/mo |
-| Stripe | 2.9% + $0.30/tx | Same |
-| Stripe Identity | $1.50/verification | Same |
-| Domain | - | ~$12/year |
-| Rust Server | - | $20-50/mo |
-
-**Starting cost**: ~$25-60/month + transaction fees
-
-## Security Considerations
-
-- API keys are hashed before storage
-- Webhook signatures are verified
-- Rate limiting on all endpoints
+- Server API keys are SHA-256 hashed before storage
+- Stripe webhook signatures verified on all events
+- Identity fingerprints salted + hashed (never stored in plain text)
 - Steam ID verified via OpenID
-- Server API uses secret key authentication
-- ID verification processed by Stripe (PCI compliant)
+- Admin access restricted by Discord user ID
 
 ## License
 
