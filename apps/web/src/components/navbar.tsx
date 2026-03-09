@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { UserMenu } from "./user-menu";
+import { PlayerSearch } from "./player-search";
 
 export function Navbar() {
   const { data: session, status } = useSession();
@@ -32,6 +33,12 @@ export function Navbar() {
             Leaderboard
           </Link>
           <Link
+            href="/players"
+            className="text-sm text-zinc-400 hover:text-white transition-colors"
+          >
+            Players
+          </Link>
+          <Link
             href="/rules"
             className="text-sm text-zinc-400 hover:text-white transition-colors"
           >
@@ -50,17 +57,15 @@ export function Navbar() {
             Map Voting
           </Link>
           <Link
-            href="/battle-pass"
-            className="text-sm text-zinc-400 hover:text-white transition-colors"
-          >
-            Battle Pass
-          </Link>
-          <Link
             href="/vip"
             className="text-sm text-zinc-400 hover:text-white transition-colors"
           >
             VIP
           </Link>
+
+          <div className="hidden lg:block">
+            <PlayerSearch variant="dropdown" />
+          </div>
 
           {isLoading ? (
             <div className="h-9 w-9 bg-zinc-800 rounded-full animate-pulse" />
