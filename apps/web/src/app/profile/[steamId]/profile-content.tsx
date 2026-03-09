@@ -261,28 +261,6 @@ export function ProfileContent({
           </div>
         </div>
 
-        {/* Stats Summary */}
-        {showStats ? (
-          <>
-            <h2 className="text-xl font-bold text-white mb-4">All-Time Stats</h2>
-            <div className="grid gap-4 grid-cols-2 md:grid-cols-4 mb-8">
-              <StatCard icon={Target} label="Kills" value={stats.kills.toLocaleString()} subtext={`K/D: ${getKDRatio(stats.kills, stats.deaths)}`} />
-              <StatCard icon={Skull} label="Deaths" value={stats.deaths.toLocaleString()} subtext="All-time" />
-              <StatCard icon={Crosshair} label="Headshots" value={stats.headshots.toLocaleString()} subtext={stats.kills > 0 ? `${((stats.headshots / stats.kills) * 100).toFixed(1)}% HS rate` : "0% HS rate"} />
-              <StatCard icon={Timer} label="Hours Played" value={stats.totalHours.toFixed(1)} subtext="All-time" />
-              <StatCard icon={TreePine} label="Wood" value={stats.woodGathered.toLocaleString()} subtext="Gathered" />
-              <StatCard icon={Mountain} label="Stone" value={stats.stoneGathered.toLocaleString()} subtext="Gathered" />
-              <StatCard icon={Pickaxe} label="Metal Ore" value={stats.metalOreGathered.toLocaleString()} subtext="Gathered" />
-              <StatCard icon={Gem} label="Sulfur Ore" value={stats.sulfurOreGathered.toLocaleString()} subtext="Gathered" />
-            </div>
-          </>
-        ) : (
-          <div className="card mb-8 p-8 text-center">
-            <EyeOff className="h-8 w-8 text-zinc-500 mx-auto mb-3" />
-            <p className="text-zinc-400">This player has hidden their stats.</p>
-          </div>
-        )}
-
         {/* Top Friends */}
         <h2 className="text-xl font-bold text-white mb-4">Top Friends</h2>
         {topFriends.length > 0 ? (
@@ -311,6 +289,28 @@ export function ProfileContent({
             <p className="text-zinc-400">
               {isOwner ? "No top friends set. Go to Settings to add some!" : "No top friends set."}
             </p>
+          </div>
+        )}
+
+        {/* Stats Summary */}
+        {showStats ? (
+          <>
+            <h2 className="text-xl font-bold text-white mb-4">All-Time Stats</h2>
+            <div className="grid gap-4 grid-cols-2 md:grid-cols-4 mb-8">
+              <StatCard icon={Target} label="Kills" value={stats.kills.toLocaleString()} subtext={`K/D: ${getKDRatio(stats.kills, stats.deaths)}`} />
+              <StatCard icon={Skull} label="Deaths" value={stats.deaths.toLocaleString()} subtext="All-time" />
+              <StatCard icon={Crosshair} label="Headshots" value={stats.headshots.toLocaleString()} subtext={stats.kills > 0 ? `${((stats.headshots / stats.kills) * 100).toFixed(1)}% HS rate` : "0% HS rate"} />
+              <StatCard icon={Timer} label="Hours Played" value={stats.totalHours.toFixed(1)} subtext="All-time" />
+              <StatCard icon={TreePine} label="Wood" value={stats.woodGathered.toLocaleString()} subtext="Gathered" />
+              <StatCard icon={Mountain} label="Stone" value={stats.stoneGathered.toLocaleString()} subtext="Gathered" />
+              <StatCard icon={Pickaxe} label="Metal Ore" value={stats.metalOreGathered.toLocaleString()} subtext="Gathered" />
+              <StatCard icon={Gem} label="Sulfur Ore" value={stats.sulfurOreGathered.toLocaleString()} subtext="Gathered" />
+            </div>
+          </>
+        ) : (
+          <div className="card mb-8 p-8 text-center">
+            <EyeOff className="h-8 w-8 text-zinc-500 mx-auto mb-3" />
+            <p className="text-zinc-400">This player has hidden their stats.</p>
           </div>
         )}
 
