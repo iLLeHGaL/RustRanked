@@ -75,31 +75,6 @@ export async function POST(request: NextRequest) {
     // Check VIP status
     const hasVip = user.vipAccess.length > 0;
 
-    // Fetch season data for response
-    let seasonData = {};
-    try {
-      const season = await prisma.season.findFirst({
-        where: { status: "ACTIVE" as const },
-      });
-      if (season) {
-        const playerSeason = await prisma.playerSeason.findUnique({
-          where: {
-            userId_seasonId: {
-              userId: user.id,
-              seasonId: season.id,
-            },
-          },
-        });
-        seasonData = {
-          seasonLevel: playerSeason?.currentLevel ?? 0,
-          seasonXp: playerSeason?.currentXp ?? 0,
-          hasPremium: true, // All players get full battle pass
-        };
-      }
-    } catch {
-      // Non-critical, continue without season data
-    }
-
     // User is allowed to play
     return NextResponse.json({
       allowed: true,
@@ -109,7 +84,6 @@ export async function POST(request: NextRequest) {
         discordName: user.discordName,
         steamName: user.steamName,
       },
-      ...seasonData,
     });
   } catch (error) {
     console.error("Verify player error:", error);
