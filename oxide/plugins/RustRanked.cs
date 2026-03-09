@@ -195,12 +195,12 @@ namespace Oxide.Plugins
             victimXp.Dirty = true;
         }
 
-        private void OnWeaponFired(BaseProjectile projectile, BasePlayer player, ItemModProjectile mod, ProjectileShoot projectiles)
+        private void OnWeaponFired(BaseProjectile projectile, BasePlayer player, ItemModProjectile mod)
         {
             if (player == null) return;
 
             var stats = GetOrCreateStats(player.UserIDString);
-            stats.BulletsFired += projectiles.projectiles.Count;
+            stats.BulletsFired++;
             stats.Dirty = true;
         }
 
@@ -262,12 +262,12 @@ namespace Oxide.Plugins
             }
         }
 
-        private void OnBowFired(BowWeapon bow, BasePlayer player, ItemModProjectile mod, ProjectileShoot projectiles)
+        private void OnBowFired(BowWeapon bow, BasePlayer player, ItemModProjectile mod)
         {
             if (player == null) return;
 
             var stats = GetOrCreateStats(player.UserIDString);
-            stats.ArrowsFired += projectiles.projectiles.Count;
+            stats.ArrowsFired++;
             stats.Dirty = true;
         }
 
