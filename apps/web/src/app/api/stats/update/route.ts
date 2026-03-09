@@ -3,41 +3,44 @@ import { prisma, SeasonStatus } from "@rustranked/database";
 import { getSeasonConfig, levelFromXp, XP_SOURCES } from "@/lib/xp-engine";
 import { notifyDiscordBot } from "@/lib/discord-notify";
 
-// Server types - matches Prisma enum
-const ServerType = {
-  US_MAIN: "US_MAIN",
-  US_MONDAYS: "US_MONDAYS",
-  EU_MAIN: "EU_MAIN",
-  EU_MONDAYS: "EU_MONDAYS",
-} as const;
+// All stat fields that can be sent by the plugin
+const STAT_FIELDS = [
+  "kills", "deaths", "headshots", "bulletsFired", "bulletsHit",
+  "arrowsFired", "arrowsHit", "suicides", "timesWounded",
+  "woundedRecoveries", "syringesUsed", "bandagesUsed", "medkitsUsed",
+  "animalKills", "npcKills",
+  "rocketsLaunched", "explosivesUsed", "c4Used", "satchelsUsed", "explosiveAmmoUsed",
+  "woodGathered", "stoneGathered", "metalOreGathered", "sulfurOreGathered",
+  "blocksPlaced", "blocksUpgraded",
+  "cratesLooted", "barrelsLooted",
+  "itemsRecycled",
+  "scrapGambled", "scrapWon",
+  "boatsSpawned", "minisSpawned",
+  "vehicleKills",
+  "fishCaught",
+  "hoursPlayed", "resourcesGathered",
+] as const;
 
-type ServerTypeValue = (typeof ServerType)[keyof typeof ServerType];
+type StatField = (typeof STAT_FIELDS)[number];
+
+function pickStats(source: Record<string, unknown>, mode: "update" | "create") {
+  const result: Record<string, number | undefined> = {};
+  for (const field of STAT_FIELDS) {
+    const val = source[field];
+    if (val !== undefined && val !== null) {
+      result[field] = typeof val === "number" ? val : undefined;
+    } else {
+      result[field] = mode === "create" ? 0 : undefined;
+    }
+  }
+  return result;
+}
 
 // POST - Update single player wipe stats (called by game server plugin)
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const {
-      apiKey,
-      steamId,
-      serverType,
-      wipeId,
-      kills,
-      deaths,
-      headshots,
-      bulletsFired,
-      bulletsHit,
-      arrowsFired,
-      arrowsHit,
-      rocketsLaunched,
-      explosivesUsed,
-      woodGathered,
-      stoneGathered,
-      metalOreGathered,
-      sulfurOreGathered,
-      hoursPlayed,
-      resourcesGathered,
-    } = body;
+    const { apiKey, steamId, serverType, wipeId } = body;
 
     // Verify API key
     const expectedApiKey = process.env.STATS_API_KEY;
@@ -53,20 +56,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate server type
-    if (!Object.values(ServerType).includes(serverType as ServerTypeValue)) {
-      return NextResponse.json(
-        { error: "Invalid serverType" },
-        { status: 400 }
-      );
-    }
+    // serverType is now any string (server slug) — no enum validation needed
 
     // Get previous stats for delta calculation
     const previousStats = await prisma.wipeStats.findUnique({
       where: {
         steamId_serverType_wipeId: {
           steamId,
-          serverType: serverType as ServerTypeValue,
+          serverType,
           wipeId,
         },
       },
@@ -77,46 +74,16 @@ export async function POST(request: NextRequest) {
       where: {
         steamId_serverType_wipeId: {
           steamId,
-          serverType: serverType as ServerTypeValue,
+          serverType,
           wipeId,
         },
       },
-      update: {
-        kills: kills ?? undefined,
-        deaths: deaths ?? undefined,
-        headshots: headshots ?? undefined,
-        bulletsFired: bulletsFired ?? undefined,
-        bulletsHit: bulletsHit ?? undefined,
-        arrowsFired: arrowsFired ?? undefined,
-        arrowsHit: arrowsHit ?? undefined,
-        rocketsLaunched: rocketsLaunched ?? undefined,
-        explosivesUsed: explosivesUsed ?? undefined,
-        woodGathered: woodGathered ?? undefined,
-        stoneGathered: stoneGathered ?? undefined,
-        metalOreGathered: metalOreGathered ?? undefined,
-        sulfurOreGathered: sulfurOreGathered ?? undefined,
-        hoursPlayed: hoursPlayed ?? undefined,
-        resourcesGathered: resourcesGathered ?? undefined,
-      },
+      update: pickStats(body, "update"),
       create: {
         steamId,
-        serverType: serverType as ServerTypeValue,
+        serverType,
         wipeId,
-        kills: kills ?? 0,
-        deaths: deaths ?? 0,
-        headshots: headshots ?? 0,
-        bulletsFired: bulletsFired ?? 0,
-        bulletsHit: bulletsHit ?? 0,
-        arrowsFired: arrowsFired ?? 0,
-        arrowsHit: arrowsHit ?? 0,
-        rocketsLaunched: rocketsLaunched ?? 0,
-        explosivesUsed: explosivesUsed ?? 0,
-        woodGathered: woodGathered ?? 0,
-        stoneGathered: stoneGathered ?? 0,
-        metalOreGathered: metalOreGathered ?? 0,
-        sulfurOreGathered: sulfurOreGathered ?? 0,
-        hoursPlayed: hoursPlayed ?? 0,
-        resourcesGathered: resourcesGathered ?? 0,
+        ...pickStats(body, "create"),
       },
     });
 
@@ -153,80 +120,28 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Validate server type
-    if (!Object.values(ServerType).includes(serverType as ServerTypeValue)) {
-      return NextResponse.json(
-        { error: "Invalid serverType" },
-        { status: 400 }
-      );
-    }
+    // serverType is now any string (server slug) — no enum validation needed
 
     // Process each player
     const results = await Promise.all(
-      players.map(async (player: {
-        steamId: string;
-        kills?: number;
-        deaths?: number;
-        headshots?: number;
-        bulletsFired?: number;
-        bulletsHit?: number;
-        arrowsFired?: number;
-        arrowsHit?: number;
-        rocketsLaunched?: number;
-        explosivesUsed?: number;
-        woodGathered?: number;
-        stoneGathered?: number;
-        metalOreGathered?: number;
-        sulfurOreGathered?: number;
-        hoursPlayed?: number;
-        resourcesGathered?: number;
-      }) => {
-        if (!player.steamId) return null;
+      players.map(async (player: Record<string, unknown>) => {
+        const steamId = player.steamId as string | undefined;
+        if (!steamId) return null;
 
         return prisma.wipeStats.upsert({
           where: {
             steamId_serverType_wipeId: {
-              steamId: player.steamId,
-              serverType: serverType as ServerTypeValue,
+              steamId,
+              serverType,
               wipeId,
             },
           },
-          update: {
-            kills: player.kills ?? undefined,
-            deaths: player.deaths ?? undefined,
-            headshots: player.headshots ?? undefined,
-            bulletsFired: player.bulletsFired ?? undefined,
-            bulletsHit: player.bulletsHit ?? undefined,
-            arrowsFired: player.arrowsFired ?? undefined,
-            arrowsHit: player.arrowsHit ?? undefined,
-            rocketsLaunched: player.rocketsLaunched ?? undefined,
-            explosivesUsed: player.explosivesUsed ?? undefined,
-            woodGathered: player.woodGathered ?? undefined,
-            stoneGathered: player.stoneGathered ?? undefined,
-            metalOreGathered: player.metalOreGathered ?? undefined,
-            sulfurOreGathered: player.sulfurOreGathered ?? undefined,
-            hoursPlayed: player.hoursPlayed ?? undefined,
-            resourcesGathered: player.resourcesGathered ?? undefined,
-          },
+          update: pickStats(player, "update"),
           create: {
-            steamId: player.steamId,
-            serverType: serverType as ServerTypeValue,
+            steamId,
+            serverType,
             wipeId,
-            kills: player.kills ?? 0,
-            deaths: player.deaths ?? 0,
-            headshots: player.headshots ?? 0,
-            bulletsFired: player.bulletsFired ?? 0,
-            bulletsHit: player.bulletsHit ?? 0,
-            arrowsFired: player.arrowsFired ?? 0,
-            arrowsHit: player.arrowsHit ?? 0,
-            rocketsLaunched: player.rocketsLaunched ?? 0,
-            explosivesUsed: player.explosivesUsed ?? 0,
-            woodGathered: player.woodGathered ?? 0,
-            stoneGathered: player.stoneGathered ?? 0,
-            metalOreGathered: player.metalOreGathered ?? 0,
-            sulfurOreGathered: player.sulfurOreGathered ?? 0,
-            hoursPlayed: player.hoursPlayed ?? 0,
-            resourcesGathered: player.resourcesGathered ?? 0,
+            ...pickStats(player, "create"),
           },
         });
       })
@@ -257,6 +172,9 @@ interface StatRecord {
   explosivesUsed: number;
   resourcesGathered: number;
   hoursPlayed: number;
+  animalKills: number;
+  fishCaught: number;
+  blocksPlaced: number;
 }
 
 async function awardXpFromStatDeltas(
@@ -282,6 +200,9 @@ async function awardXpFromStatDeltas(
       explosivesUsed: 0,
       resourcesGathered: 0,
       hoursPlayed: 0,
+      animalKills: 0,
+      fishCaught: 0,
+      blocksPlaced: 0,
     };
 
     const killsDelta = Math.max(0, current.kills - prev.kills);
@@ -291,6 +212,9 @@ async function awardXpFromStatDeltas(
     const explosivesDelta = Math.max(0, current.explosivesUsed - prev.explosivesUsed);
     const resourcesDelta = Math.max(0, current.resourcesGathered - prev.resourcesGathered);
     const hoursDelta = Math.max(0, current.hoursPlayed - prev.hoursPlayed);
+    const animalKillsDelta = Math.max(0, current.animalKills - prev.animalKills);
+    const fishDelta = Math.max(0, current.fishCaught - prev.fishCaught);
+    const blocksDelta = Math.max(0, current.blocksPlaced - prev.blocksPlaced);
 
     // Build XP entries
     const xpEntries: { source: string; amount: number }[] = [];
@@ -338,6 +262,21 @@ async function awardXpFromStatDeltas(
       if (playtimeXp > 0) {
         xpEntries.push({ source: "playtime", amount: playtimeXp });
       }
+    }
+
+    // Animal kills XP (10 XP each)
+    if (animalKillsDelta > 0) {
+      xpEntries.push({ source: "animal_kill", amount: animalKillsDelta * 10 });
+    }
+
+    // Fish caught XP (5 XP each)
+    if (fishDelta > 0) {
+      xpEntries.push({ source: "fish", amount: fishDelta * 5 });
+    }
+
+    // Building blocks placed XP (2 XP each)
+    if (blocksDelta > 0) {
+      xpEntries.push({ source: "building", amount: blocksDelta * 2 });
     }
 
     if (xpEntries.length === 0) return;

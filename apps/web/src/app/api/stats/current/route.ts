@@ -3,16 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@rustranked/database";
 
-// Server types - matches Prisma enum
-const ServerType = {
-  US_MAIN: "US_MAIN",
-  US_MONDAYS: "US_MONDAYS",
-  EU_MAIN: "EU_MAIN",
-  EU_MONDAYS: "EU_MONDAYS",
-} as const;
-
-type ServerTypeValue = (typeof ServerType)[keyof typeof ServerType];
-
 const EMPTY_STATS = {
   kills: 0,
   deaths: 0,
@@ -21,15 +11,40 @@ const EMPTY_STATS = {
   bulletsHit: 0,
   arrowsFired: 0,
   arrowsHit: 0,
+  suicides: 0,
+  timesWounded: 0,
+  woundedRecoveries: 0,
+  syringesUsed: 0,
+  bandagesUsed: 0,
+  medkitsUsed: 0,
+  animalKills: 0,
+  npcKills: 0,
   rocketsLaunched: 0,
   explosivesUsed: 0,
+  c4Used: 0,
+  satchelsUsed: 0,
+  explosiveAmmoUsed: 0,
   woodGathered: 0,
   stoneGathered: 0,
   metalOreGathered: 0,
   sulfurOreGathered: 0,
+  blocksPlaced: 0,
+  blocksUpgraded: 0,
+  cratesLooted: 0,
+  barrelsLooted: 0,
+  itemsRecycled: 0,
+  scrapGambled: 0,
+  scrapWon: 0,
+  boatsSpawned: 0,
+  minisSpawned: 0,
+  vehicleKills: 0,
+  fishCaught: 0,
   hoursPlayed: 0,
   resourcesGathered: 0,
 };
+
+type StatsShape = typeof EMPTY_STATS;
+const STAT_KEYS = Object.keys(EMPTY_STATS) as (keyof StatsShape)[];
 
 // GET - Get current wipe stats for logged-in user
 export async function GET(request: NextRequest) {
@@ -53,14 +68,14 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const serverType = searchParams.get("serverType") as ServerTypeValue | null;
+  const serverType = searchParams.get("serverType");
 
   // Get the most recent wipe stats for each server (or specific server)
-  let whereClause: { steamId: string; serverType?: ServerTypeValue } = {
+  const whereClause: { steamId: string; serverType?: string } = {
     steamId: user.steamId,
   };
 
-  if (serverType && Object.values(ServerType).includes(serverType)) {
+  if (serverType) {
     whereClause.serverType = serverType;
   }
 
@@ -68,12 +83,12 @@ export async function GET(request: NextRequest) {
   const stats = await prisma.wipeStats.findMany({
     where: whereClause,
     orderBy: { updatedAt: "desc" },
-    take: serverType ? 1 : 4,
+    take: serverType ? 1 : 20,
   });
 
   // If getting all servers, group by server and get latest for each
   if (!serverType) {
-    const latestByServer: Record<string, typeof stats[0]> = {};
+    const latestByServer: Record<string, (typeof stats)[0]> = {};
     for (const stat of stats) {
       if (!latestByServer[stat.serverType]) {
         latestByServer[stat.serverType] = stat;
@@ -82,23 +97,14 @@ export async function GET(request: NextRequest) {
 
     // Aggregate stats across all servers
     const aggregated = Object.values(latestByServer).reduce(
-      (acc, stat) => ({
-        kills: acc.kills + stat.kills,
-        deaths: acc.deaths + stat.deaths,
-        headshots: acc.headshots + stat.headshots,
-        bulletsFired: acc.bulletsFired + stat.bulletsFired,
-        bulletsHit: acc.bulletsHit + stat.bulletsHit,
-        arrowsFired: acc.arrowsFired + stat.arrowsFired,
-        arrowsHit: acc.arrowsHit + stat.arrowsHit,
-        rocketsLaunched: acc.rocketsLaunched + stat.rocketsLaunched,
-        explosivesUsed: acc.explosivesUsed + stat.explosivesUsed,
-        woodGathered: acc.woodGathered + stat.woodGathered,
-        stoneGathered: acc.stoneGathered + stat.stoneGathered,
-        metalOreGathered: acc.metalOreGathered + stat.metalOreGathered,
-        sulfurOreGathered: acc.sulfurOreGathered + stat.sulfurOreGathered,
-        hoursPlayed: acc.hoursPlayed + stat.hoursPlayed,
-        resourcesGathered: acc.resourcesGathered + stat.resourcesGathered,
-      }),
+      (acc, stat) => {
+        const result = { ...acc };
+        for (const key of STAT_KEYS) {
+          (result as Record<string, number>)[key] =
+            (acc[key] as number) + (stat[key] as number);
+        }
+        return result;
+      },
       { ...EMPTY_STATS }
     );
 
@@ -114,25 +120,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ stats: { ...EMPTY_STATS } });
   }
 
-  return NextResponse.json({
-    stats: {
-      kills: stat.kills,
-      deaths: stat.deaths,
-      headshots: stat.headshots,
-      bulletsFired: stat.bulletsFired,
-      bulletsHit: stat.bulletsHit,
-      arrowsFired: stat.arrowsFired,
-      arrowsHit: stat.arrowsHit,
-      rocketsLaunched: stat.rocketsLaunched,
-      explosivesUsed: stat.explosivesUsed,
-      woodGathered: stat.woodGathered,
-      stoneGathered: stat.stoneGathered,
-      metalOreGathered: stat.metalOreGathered,
-      sulfurOreGathered: stat.sulfurOreGathered,
-      hoursPlayed: stat.hoursPlayed,
-      resourcesGathered: stat.resourcesGathered,
-      wipeId: stat.wipeId,
-      serverType: stat.serverType,
-    },
-  });
+  const result: Record<string, unknown> = {};
+  for (const key of STAT_KEYS) {
+    result[key] = stat[key];
+  }
+  result.wipeId = stat.wipeId;
+  result.serverType = stat.serverType;
+
+  return NextResponse.json({ stats: result });
 }

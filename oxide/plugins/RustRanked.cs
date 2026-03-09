@@ -8,7 +8,7 @@ using System.Text;
 
 namespace Oxide.Plugins
 {
-    [Info("RustRanked", "RustRanked", "3.0.0")]
+    [Info("RustRanked", "RustRanked", "4.0.0")]
     [Description("Integration plugin for RustRanked competitive platform")]
     public class RustRanked : CovalencePlugin
     {
@@ -75,6 +75,7 @@ namespace Oxide.Plugins
 
         private Dictionary<string, PlayerData> verifiedPlayers = new Dictionary<string, PlayerData>();
         private Dictionary<string, PlayerStats> playerStats = new Dictionary<string, PlayerStats>();
+        private Dictionary<string, DateTime> playerConnectTimes = new Dictionary<string, DateTime>();
 
         private class PlayerData
         {
@@ -90,6 +91,7 @@ namespace Oxide.Plugins
 
         private class PlayerStats
         {
+            // PvP
             public int Kills { get; set; }
             public int Deaths { get; set; }
             public int Headshots { get; set; }
@@ -97,12 +99,59 @@ namespace Oxide.Plugins
             public int BulletsHit { get; set; }
             public int ArrowsFired { get; set; }
             public int ArrowsHit { get; set; }
+            public int Suicides { get; set; }
+            public int TimesWounded { get; set; }
+            public int WoundedRecoveries { get; set; }
+            public int SyringesUsed { get; set; }
+            public int BandagesUsed { get; set; }
+            public int MedkitsUsed { get; set; }
+
+            // PvE
+            public int AnimalKills { get; set; }
+            public int NpcKills { get; set; }
+
+            // Raiding / Boom
             public int RocketsLaunched { get; set; }
             public int ExplosivesUsed { get; set; }
+            public int C4Used { get; set; }
+            public int SatchelsUsed { get; set; }
+            public int ExplosiveAmmoUsed { get; set; }
+
+            // Resources
             public int WoodGathered { get; set; }
             public int StoneGathered { get; set; }
             public int MetalOreGathered { get; set; }
             public int SulfurOreGathered { get; set; }
+            public int ResourcesGathered { get; set; }
+
+            // Building
+            public int BlocksPlaced { get; set; }
+            public int BlocksUpgraded { get; set; }
+
+            // Looting
+            public int CratesLooted { get; set; }
+            public int BarrelsLooted { get; set; }
+
+            // Recycling
+            public int ItemsRecycled { get; set; }
+
+            // Gambling
+            public int ScrapGambled { get; set; }
+            public int ScrapWon { get; set; }
+
+            // Vehicles
+            public int BoatsSpawned { get; set; }
+            public int MinisSpawned { get; set; }
+
+            // Vehicle Combat
+            public int VehicleKills { get; set; }
+
+            // Fishing
+            public int FishCaught { get; set; }
+
+            // Time
+            public float HoursPlayed { get; set; }
+
             public bool Dirty { get; set; }
         }
 
@@ -135,20 +184,29 @@ namespace Oxide.Plugins
             foreach (var player in players.Connected)
             {
                 VerifyPlayer(player);
+                playerConnectTimes[player.Id] = DateTime.UtcNow;
             }
 
             // Start periodic stats and XP reporting
-            timer.Every(config.StatsReportInterval, ReportAllStats);
-            timer.Every(config.StatsReportInterval, ReportAllXp);
+            timer.Every(config.StatsReportInterval, () =>
+            {
+                UpdateAllPlaytimes();
+                ReportAllStats();
+                ReportAllXp();
+            });
         }
 
         private void OnUserConnected(IPlayer player)
         {
             VerifyPlayer(player);
+            playerConnectTimes[player.Id] = DateTime.UtcNow;
         }
 
         private void OnUserDisconnected(IPlayer player)
         {
+            // Calculate final session playtime
+            UpdatePlaytime(player.Id);
+
             // Report stats and XP before removing player
             if (playerStats.ContainsKey(player.Id) && playerStats[player.Id].Dirty)
             {
@@ -161,14 +219,29 @@ namespace Oxide.Plugins
             verifiedPlayers.Remove(player.Id);
             playerStats.Remove(player.Id);
             playerXp.Remove(player.Id);
+            playerConnectTimes.Remove(player.Id);
         }
+
+        // --- PvP ---
 
         private void OnPlayerDeath(BasePlayer victim, HitInfo info)
         {
             if (victim == null) return;
 
             var attacker = info?.InitiatorPlayer;
-            if (attacker == null || attacker == victim) return;
+
+            // Suicide check
+            if (attacker == null || attacker == victim)
+            {
+                var victimStats = GetOrCreateStats(victim.UserIDString);
+                victimStats.Deaths++;
+                victimStats.Suicides++;
+                victimStats.Dirty = true;
+                var victimXp = GetOrCreateXp(victim.UserIDString);
+                victimXp.Entries.Add(new XpEntry { Source = "death", Amount = 5 });
+                victimXp.Dirty = true;
+                return;
+            }
 
             // Track kill for attacker
             var attackerStats = GetOrCreateStats(attacker.UserIDString);
@@ -187,13 +260,31 @@ namespace Oxide.Plugins
             attackerStats.Dirty = true;
 
             // Track death for victim
-            var victimStats = GetOrCreateStats(victim.UserIDString);
-            victimStats.Deaths++;
-            victimStats.Dirty = true;
-            var victimXp = GetOrCreateXp(victim.UserIDString);
-            victimXp.Entries.Add(new XpEntry { Source = "death", Amount = 5 });
-            victimXp.Dirty = true;
+            var deathStats = GetOrCreateStats(victim.UserIDString);
+            deathStats.Deaths++;
+            deathStats.Dirty = true;
+            var deathXp = GetOrCreateXp(victim.UserIDString);
+            deathXp.Entries.Add(new XpEntry { Source = "death", Amount = 5 });
+            deathXp.Dirty = true;
         }
+
+        private void OnPlayerWound(BasePlayer player)
+        {
+            if (player == null) return;
+            var stats = GetOrCreateStats(player.UserIDString);
+            stats.TimesWounded++;
+            stats.Dirty = true;
+        }
+
+        private void OnPlayerRecover(BasePlayer player)
+        {
+            if (player == null) return;
+            var stats = GetOrCreateStats(player.UserIDString);
+            stats.WoundedRecoveries++;
+            stats.Dirty = true;
+        }
+
+        // --- Weapons & Accuracy ---
 
         private void OnWeaponFired(BaseProjectile projectile, BasePlayer player, ItemModProjectile mod)
         {
@@ -201,32 +292,117 @@ namespace Oxide.Plugins
 
             var stats = GetOrCreateStats(player.UserIDString);
             stats.BulletsFired++;
+
+            // Check for explosive ammo
+            if (mod?.projectileObject != null)
+            {
+                var ammo = projectile?.primaryMagazine?.ammoType;
+                if (ammo != null && ammo.shortname == "ammo.rifle.explosive")
+                {
+                    stats.ExplosiveAmmoUsed++;
+                }
+            }
+
             stats.Dirty = true;
         }
 
-        private void OnRocketLaunched(BasePlayer player, BaseEntity entity)
+        private void OnEntityTakeDamage(BaseCombatEntity entity, HitInfo info)
+        {
+            if (entity == null || info == null) return;
+            var attacker = info.InitiatorPlayer;
+            if (attacker == null) return;
+
+            // Only track hits on players
+            if (!(entity is BasePlayer target) || target == attacker) return;
+
+            var weapon = info.Weapon?.GetItem()?.GetHeldEntity();
+            if (weapon == null) return;
+
+            var stats = GetOrCreateStats(attacker.UserIDString);
+
+            if (weapon is BaseProjectile)
+            {
+                stats.BulletsHit++;
+                stats.Dirty = true;
+            }
+        }
+
+        private void OnBowFired(BowWeapon bow, BasePlayer player, ItemModProjectile mod)
         {
             if (player == null) return;
 
             var stats = GetOrCreateStats(player.UserIDString);
-            stats.RocketsLaunched++;
+            stats.ArrowsFired++;
             stats.Dirty = true;
-            var xp = GetOrCreateXp(player.UserIDString);
-            xp.Entries.Add(new XpEntry { Source = "rocket", Amount = 17 });
-            xp.Dirty = true;
         }
 
-        private void OnExplosiveThrown(BasePlayer player, BaseEntity entity, ThrownWeapon item)
+        // --- Healing Items ---
+
+        private void OnItemUse(Item item, int amountToUse)
         {
-            if (player == null) return;
-
+            if (item?.parent?.playerOwner == null) return;
+            var player = item.parent.playerOwner;
             var stats = GetOrCreateStats(player.UserIDString);
-            stats.ExplosivesUsed++;
-            stats.Dirty = true;
-            var xp = GetOrCreateXp(player.UserIDString);
-            xp.Entries.Add(new XpEntry { Source = "explosive", Amount = 17 });
-            xp.Dirty = true;
+
+            switch (item.info.shortname)
+            {
+                case "syringe.medical":
+                    stats.SyringesUsed++;
+                    stats.Dirty = true;
+                    break;
+                case "bandage":
+                    stats.BandagesUsed++;
+                    stats.Dirty = true;
+                    break;
+                case "largemedkit":
+                    stats.MedkitsUsed++;
+                    stats.Dirty = true;
+                    break;
+            }
         }
+
+        // --- PvE / Entity Deaths ---
+
+        private void OnEntityDeath(BaseCombatEntity entity, HitInfo info)
+        {
+            if (entity == null || info == null) return;
+            var attacker = info.InitiatorPlayer;
+            if (attacker == null) return;
+
+            var stats = GetOrCreateStats(attacker.UserIDString);
+
+            // Animal kills
+            if (entity is BaseAnimalNPC)
+            {
+                stats.AnimalKills++;
+                stats.Dirty = true;
+                var xp = GetOrCreateXp(attacker.UserIDString);
+                xp.Entries.Add(new XpEntry { Source = "animal_kill", Amount = 10 });
+                xp.Dirty = true;
+                return;
+            }
+
+            // NPC kills (scientists, tunnel dwellers, etc.)
+            if (entity is NPCPlayer || entity is global::HTNPlayer)
+            {
+                stats.NpcKills++;
+                stats.Dirty = true;
+                return;
+            }
+
+            // Vehicle kills (vehicle with occupants)
+            if (entity is BaseVehicle vehicle)
+            {
+                if (vehicle.HasDriver() || (vehicle is BaseVehicleSeat))
+                {
+                    stats.VehicleKills++;
+                    stats.Dirty = true;
+                }
+                return;
+            }
+        }
+
+        // --- Resources ---
 
         private void OnDispenserGather(ResourceDispenser dispenser, BaseEntity entity, Item item)
         {
@@ -250,6 +426,10 @@ namespace Oxide.Plugins
                     stats.SulfurOreGathered += item.amount;
                     break;
             }
+
+            // Compute total resourcesGathered
+            stats.ResourcesGathered = stats.WoodGathered + stats.StoneGathered
+                + stats.MetalOreGathered + stats.SulfurOreGathered;
             stats.Dirty = true;
 
             // Award XP per 1000 resources (batched)
@@ -262,12 +442,164 @@ namespace Oxide.Plugins
             }
         }
 
-        private void OnBowFired(BowWeapon bow, BasePlayer player, ItemModProjectile mod)
+        // --- Raiding / Boom ---
+
+        private void OnRocketLaunched(BasePlayer player, BaseEntity entity)
         {
             if (player == null) return;
 
             var stats = GetOrCreateStats(player.UserIDString);
-            stats.ArrowsFired++;
+            stats.RocketsLaunched++;
+            stats.ExplosivesUsed++;
+            stats.Dirty = true;
+            var xp = GetOrCreateXp(player.UserIDString);
+            xp.Entries.Add(new XpEntry { Source = "rocket", Amount = 17 });
+            xp.Dirty = true;
+        }
+
+        private void OnExplosiveThrown(BasePlayer player, BaseEntity entity, ThrownWeapon item)
+        {
+            if (player == null) return;
+
+            var stats = GetOrCreateStats(player.UserIDString);
+
+            var prefabName = entity?.ShortPrefabName ?? "";
+            if (prefabName.Contains("explosive.timed"))
+            {
+                stats.C4Used++;
+            }
+            else if (prefabName.Contains("explosive.satchel"))
+            {
+                stats.SatchelsUsed++;
+            }
+
+            stats.ExplosivesUsed++;
+            stats.Dirty = true;
+            var xp = GetOrCreateXp(player.UserIDString);
+            xp.Entries.Add(new XpEntry { Source = "explosive", Amount = 17 });
+            xp.Dirty = true;
+        }
+
+        // --- Building ---
+
+        private void OnEntityBuilt(Planner planner, UnityEngine.GameObject go)
+        {
+            var player = planner?.GetOwnerPlayer();
+            if (player == null) return;
+
+            var stats = GetOrCreateStats(player.UserIDString);
+            stats.BlocksPlaced++;
+            stats.Dirty = true;
+        }
+
+        private void OnStructureUpgrade(BuildingBlock block, BasePlayer player, BuildingGrade.Enum grade)
+        {
+            if (player == null) return;
+
+            var stats = GetOrCreateStats(player.UserIDString);
+            stats.BlocksUpgraded++;
+            stats.Dirty = true;
+        }
+
+        // --- Looting ---
+
+        private void OnLootEntity(BasePlayer player, BaseEntity entity)
+        {
+            if (player == null || entity == null) return;
+
+            var stats = GetOrCreateStats(player.UserIDString);
+            var prefabName = entity.ShortPrefabName ?? "";
+
+            if (prefabName.Contains("crate") || prefabName.Contains("heli_crate") ||
+                prefabName.Contains("supply_drop") || prefabName.Contains("bradley_crate"))
+            {
+                stats.CratesLooted++;
+                stats.Dirty = true;
+            }
+            else if (prefabName.Contains("barrel") || prefabName.Contains("loot-barrel") ||
+                     prefabName.Contains("loot_barrel"))
+            {
+                stats.BarrelsLooted++;
+                stats.Dirty = true;
+            }
+        }
+
+        // --- Recycling ---
+
+        private void OnRecycleItem(Recycler recycler, Item item)
+        {
+            if (recycler == null || item == null) return;
+
+            // Find the player using the recycler
+            var player = BasePlayer.FindByID(recycler.OwnerID);
+            if (player == null) return;
+
+            var stats = GetOrCreateStats(player.UserIDString);
+            stats.ItemsRecycled++;
+            stats.Dirty = true;
+        }
+
+        // --- Vehicles ---
+
+        private void OnEntitySpawned(BaseNetworkable entity)
+        {
+            if (entity == null) return;
+
+            if (entity is BaseBoat boat)
+            {
+                var ownerIdStr = boat.OwnerID.ToString();
+                if (boat.OwnerID != 0)
+                {
+                    var stats = GetOrCreateStats(ownerIdStr);
+                    stats.BoatsSpawned++;
+                    stats.Dirty = true;
+                }
+            }
+            else if (entity is MiniCopter mini)
+            {
+                var ownerIdStr = mini.OwnerID.ToString();
+                if (mini.OwnerID != 0)
+                {
+                    var stats = GetOrCreateStats(ownerIdStr);
+                    stats.MinisSpawned++;
+                    stats.Dirty = true;
+                }
+            }
+        }
+
+        // --- Fishing ---
+
+        private void OnItemAddedToContainer(ItemContainer container, Item item)
+        {
+            if (container?.playerOwner == null || item == null) return;
+
+            if (item.info.shortname.StartsWith("fish."))
+            {
+                var stats = GetOrCreateStats(container.playerOwner.UserIDString);
+                stats.FishCaught += item.amount;
+                stats.Dirty = true;
+                var xp = GetOrCreateXp(container.playerOwner.UserIDString);
+                xp.Entries.Add(new XpEntry { Source = "fish", Amount = item.amount * 5 });
+                xp.Dirty = true;
+            }
+        }
+
+        // --- Gambling ---
+
+        private void OnSpinWheel(BasePlayer player, BigWheelGame wheel)
+        {
+            if (player == null) return;
+            // BigWheelGame costs 10 scrap per spin
+            var stats = GetOrCreateStats(player.UserIDString);
+            stats.ScrapGambled += 10;
+            stats.Dirty = true;
+        }
+
+        private void OnBigWheelWin(BasePlayer player, int multiplier, int amount)
+        {
+            if (player == null) return;
+            var stats = GetOrCreateStats(player.UserIDString);
+            stats.ScrapWon += amount;
             stats.Dirty = true;
         }
 
@@ -293,6 +625,75 @@ namespace Oxide.Plugins
             return playerXp[steamId];
         }
 
+        private void UpdatePlaytime(string steamId)
+        {
+            if (!playerConnectTimes.ContainsKey(steamId)) return;
+
+            var connectTime = playerConnectTimes[steamId];
+            var sessionHours = (float)(DateTime.UtcNow - connectTime).TotalHours;
+            if (sessionHours <= 0) return;
+
+            var stats = GetOrCreateStats(steamId);
+            stats.HoursPlayed += sessionHours;
+            stats.Dirty = true;
+
+            // Reset connect time to now for next interval
+            playerConnectTimes[steamId] = DateTime.UtcNow;
+        }
+
+        private void UpdateAllPlaytimes()
+        {
+            foreach (var player in players.Connected)
+            {
+                UpdatePlaytime(player.Id);
+            }
+        }
+
+        private object BuildStatsPayload(string steamId, PlayerStats stats)
+        {
+            return new
+            {
+                steamId,
+                kills = stats.Kills,
+                deaths = stats.Deaths,
+                headshots = stats.Headshots,
+                bulletsFired = stats.BulletsFired,
+                bulletsHit = stats.BulletsHit,
+                arrowsFired = stats.ArrowsFired,
+                arrowsHit = stats.ArrowsHit,
+                suicides = stats.Suicides,
+                timesWounded = stats.TimesWounded,
+                woundedRecoveries = stats.WoundedRecoveries,
+                syringesUsed = stats.SyringesUsed,
+                bandagesUsed = stats.BandagesUsed,
+                medkitsUsed = stats.MedkitsUsed,
+                animalKills = stats.AnimalKills,
+                npcKills = stats.NpcKills,
+                rocketsLaunched = stats.RocketsLaunched,
+                explosivesUsed = stats.ExplosivesUsed,
+                c4Used = stats.C4Used,
+                satchelsUsed = stats.SatchelsUsed,
+                explosiveAmmoUsed = stats.ExplosiveAmmoUsed,
+                woodGathered = stats.WoodGathered,
+                stoneGathered = stats.StoneGathered,
+                metalOreGathered = stats.MetalOreGathered,
+                sulfurOreGathered = stats.SulfurOreGathered,
+                resourcesGathered = stats.ResourcesGathered,
+                blocksPlaced = stats.BlocksPlaced,
+                blocksUpgraded = stats.BlocksUpgraded,
+                cratesLooted = stats.CratesLooted,
+                barrelsLooted = stats.BarrelsLooted,
+                itemsRecycled = stats.ItemsRecycled,
+                scrapGambled = stats.ScrapGambled,
+                scrapWon = stats.ScrapWon,
+                boatsSpawned = stats.BoatsSpawned,
+                minisSpawned = stats.MinisSpawned,
+                vehicleKills = stats.VehicleKills,
+                fishCaught = stats.FishCaught,
+                hoursPlayed = stats.HoursPlayed
+            };
+        }
+
         private void ReportAllStats()
         {
             var batch = new List<object>();
@@ -300,25 +701,7 @@ namespace Oxide.Plugins
             foreach (var kvp in playerStats)
             {
                 if (!kvp.Value.Dirty) continue;
-
-                batch.Add(new
-                {
-                    steamId = kvp.Key,
-                    kills = kvp.Value.Kills,
-                    deaths = kvp.Value.Deaths,
-                    headshots = kvp.Value.Headshots,
-                    bulletsFired = kvp.Value.BulletsFired,
-                    bulletsHit = kvp.Value.BulletsHit,
-                    arrowsFired = kvp.Value.ArrowsFired,
-                    arrowsHit = kvp.Value.ArrowsHit,
-                    rocketsLaunched = kvp.Value.RocketsLaunched,
-                    explosivesUsed = kvp.Value.ExplosivesUsed,
-                    woodGathered = kvp.Value.WoodGathered,
-                    stoneGathered = kvp.Value.StoneGathered,
-                    metalOreGathered = kvp.Value.MetalOreGathered,
-                    sulfurOreGathered = kvp.Value.SulfurOreGathered
-                });
-
+                batch.Add(BuildStatsPayload(kvp.Key, kvp.Value));
                 kvp.Value.Dirty = false;
             }
 
@@ -364,6 +747,8 @@ namespace Oxide.Plugins
                 { "Content-Type", "application/json" }
             };
 
+            var payload = BuildStatsPayload(steamId, stats);
+            // Merge top-level fields for single-player POST
             var body = JsonConvert.SerializeObject(new
             {
                 apiKey = config.StatsApiKey,
@@ -377,12 +762,36 @@ namespace Oxide.Plugins
                 bulletsHit = stats.BulletsHit,
                 arrowsFired = stats.ArrowsFired,
                 arrowsHit = stats.ArrowsHit,
+                suicides = stats.Suicides,
+                timesWounded = stats.TimesWounded,
+                woundedRecoveries = stats.WoundedRecoveries,
+                syringesUsed = stats.SyringesUsed,
+                bandagesUsed = stats.BandagesUsed,
+                medkitsUsed = stats.MedkitsUsed,
+                animalKills = stats.AnimalKills,
+                npcKills = stats.NpcKills,
                 rocketsLaunched = stats.RocketsLaunched,
                 explosivesUsed = stats.ExplosivesUsed,
+                c4Used = stats.C4Used,
+                satchelsUsed = stats.SatchelsUsed,
+                explosiveAmmoUsed = stats.ExplosiveAmmoUsed,
                 woodGathered = stats.WoodGathered,
                 stoneGathered = stats.StoneGathered,
                 metalOreGathered = stats.MetalOreGathered,
-                sulfurOreGathered = stats.SulfurOreGathered
+                sulfurOreGathered = stats.SulfurOreGathered,
+                resourcesGathered = stats.ResourcesGathered,
+                blocksPlaced = stats.BlocksPlaced,
+                blocksUpgraded = stats.BlocksUpgraded,
+                cratesLooted = stats.CratesLooted,
+                barrelsLooted = stats.BarrelsLooted,
+                itemsRecycled = stats.ItemsRecycled,
+                scrapGambled = stats.ScrapGambled,
+                scrapWon = stats.ScrapWon,
+                boatsSpawned = stats.BoatsSpawned,
+                minisSpawned = stats.MinisSpawned,
+                vehicleKills = stats.VehicleKills,
+                fishCaught = stats.FishCaught,
+                hoursPlayed = stats.HoursPlayed
             });
 
             webrequest.Enqueue(

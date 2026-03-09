@@ -23,6 +23,10 @@ import {
   Skull,
   Timer,
   Pickaxe,
+  Crosshair,
+  TreePine,
+  Mountain,
+  Gem,
   ExternalLink,
   User,
   Trophy,
@@ -35,8 +39,41 @@ import { Navbar } from "@/components/navbar";
 interface WipeStats {
   kills: number;
   deaths: number;
-  hoursPlayed: number;
+  headshots: number;
+  bulletsFired: number;
+  bulletsHit: number;
+  arrowsFired: number;
+  arrowsHit: number;
+  suicides: number;
+  timesWounded: number;
+  woundedRecoveries: number;
+  syringesUsed: number;
+  bandagesUsed: number;
+  medkitsUsed: number;
+  animalKills: number;
+  npcKills: number;
+  rocketsLaunched: number;
+  explosivesUsed: number;
+  c4Used: number;
+  satchelsUsed: number;
+  explosiveAmmoUsed: number;
+  woodGathered: number;
+  stoneGathered: number;
+  metalOreGathered: number;
+  sulfurOreGathered: number;
   resourcesGathered: number;
+  blocksPlaced: number;
+  blocksUpgraded: number;
+  cratesLooted: number;
+  barrelsLooted: number;
+  itemsRecycled: number;
+  scrapGambled: number;
+  scrapWon: number;
+  boatsSpawned: number;
+  minisSpawned: number;
+  vehicleKills: number;
+  fishCaught: number;
+  hoursPlayed: number;
 }
 
 function getKDRatio(kills: number, deaths: number): string {
@@ -330,7 +367,7 @@ export function DashboardContent({ user }: { user: UserWithSubscription }) {
         <h2 className="text-xl font-bold text-white mb-4">Current Wipe Stats</h2>
         {statsLoading ? (
           <div className="grid gap-4 grid-cols-2 md:grid-cols-4 mb-8">
-            {[...Array(4)].map((_, i) => (
+            {[...Array(8)].map((_, i) => (
               <div key={i} className="card animate-pulse">
                 <div className="h-4 bg-zinc-800 rounded w-20 mb-2" />
                 <div className="h-8 bg-zinc-800 rounded w-16 mb-1" />
@@ -361,15 +398,39 @@ export function DashboardContent({ user }: { user: UserWithSubscription }) {
               subtext="This wipe"
             />
             <StatCard
+              icon={Crosshair}
+              label="Headshots"
+              value={wipeStats.headshots.toLocaleString()}
+              subtext={wipeStats.kills > 0 ? `${((wipeStats.headshots / wipeStats.kills) * 100).toFixed(1)}% HS rate` : "0% HS rate"}
+            />
+            <StatCard
               icon={Timer}
               label="Hours Played"
               value={wipeStats.hoursPlayed.toFixed(1)}
               subtext="This wipe"
             />
             <StatCard
+              icon={TreePine}
+              label="Wood"
+              value={wipeStats.woodGathered.toLocaleString()}
+              subtext="Gathered"
+            />
+            <StatCard
+              icon={Mountain}
+              label="Stone"
+              value={wipeStats.stoneGathered.toLocaleString()}
+              subtext="Gathered"
+            />
+            <StatCard
               icon={Pickaxe}
-              label="Resources"
-              value={wipeStats.resourcesGathered.toLocaleString()}
+              label="Metal Ore"
+              value={wipeStats.metalOreGathered.toLocaleString()}
+              subtext="Gathered"
+            />
+            <StatCard
+              icon={Gem}
+              label="Sulfur Ore"
+              value={wipeStats.sulfurOreGathered.toLocaleString()}
               subtext="Gathered"
             />
           </div>

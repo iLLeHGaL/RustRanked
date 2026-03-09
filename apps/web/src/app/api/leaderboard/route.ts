@@ -1,8 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, ServerType } from "@rustranked/database";
+import { prisma } from "@rustranked/database";
 
-const VALID_SERVER_TYPES = ["US_MAIN", "US_MONDAYS", "EU_MAIN", "EU_MONDAYS"] as const;
-const VALID_SORT_FIELDS = ["kills", "deaths", "headshots", "hoursPlayed"] as const;
+const VALID_SORT_FIELDS = [
+  // PvP
+  "kills", "deaths", "headshots", "bulletsFired", "bulletsHit",
+  "arrowsFired", "arrowsHit", "suicides", "timesWounded",
+  "woundedRecoveries", "syringesUsed", "bandagesUsed", "medkitsUsed",
+  // PvE
+  "animalKills", "npcKills",
+  // Raiding / Boom
+  "rocketsLaunched", "explosivesUsed", "c4Used", "satchelsUsed", "explosiveAmmoUsed",
+  // Resources
+  "woodGathered", "stoneGathered", "metalOreGathered", "sulfurOreGathered",
+  "resourcesGathered",
+  // Building
+  "blocksPlaced", "blocksUpgraded",
+  // Looting
+  "cratesLooted", "barrelsLooted",
+  // Recycling
+  "itemsRecycled",
+  // Gambling
+  "scrapGambled", "scrapWon",
+  // Vehicles
+  "boatsSpawned", "minisSpawned",
+  // Vehicle Combat
+  "vehicleKills",
+  // Fishing
+  "fishCaught",
+  // General
+  "hoursPlayed",
+] as const;
 
 type SortField = (typeof VALID_SORT_FIELDS)[number];
 
@@ -11,11 +38,8 @@ export async function GET(request: NextRequest) {
 
   const server = searchParams.get("server") || "US_MAIN";
   const sort = (searchParams.get("sort") || "kills") as SortField;
+  const order = searchParams.get("order") === "asc" ? "asc" : "desc";
   const limit = Math.min(parseInt(searchParams.get("limit") || "100", 10), 100);
-
-  if (!VALID_SERVER_TYPES.includes(server as (typeof VALID_SERVER_TYPES)[number])) {
-    return NextResponse.json({ error: "Invalid server type" }, { status: 400 });
-  }
 
   if (!VALID_SORT_FIELDS.includes(sort)) {
     return NextResponse.json({ error: "Invalid sort field" }, { status: 400 });
@@ -23,7 +47,7 @@ export async function GET(request: NextRequest) {
 
   // Find the latest wipeId for this server
   const latestWipe = await prisma.wipeStats.findFirst({
-    where: { serverType: server as ServerType },
+    where: { serverType: server },
     orderBy: { updatedAt: "desc" },
     select: { wipeId: true },
   });
@@ -35,10 +59,10 @@ export async function GET(request: NextRequest) {
   // Get top players sorted by the requested field
   const stats = await prisma.wipeStats.findMany({
     where: {
-      serverType: server as ServerType,
+      serverType: server,
       wipeId: latestWipe.wipeId,
     },
-    orderBy: { [sort]: "desc" },
+    orderBy: { [sort]: order },
     take: limit,
   });
 
@@ -62,14 +86,55 @@ export async function GET(request: NextRequest) {
       steamId: stat.steamId,
       name: user?.steamName || user?.discordName || stat.steamId,
       avatar: user?.discordAvatar || null,
+      // PvP
       kills: stat.kills,
       deaths: stat.deaths,
       headshots: stat.headshots,
-      hoursPlayed: stat.hoursPlayed,
       bulletsFired: stat.bulletsFired,
       bulletsHit: stat.bulletsHit,
+      arrowsFired: stat.arrowsFired,
+      arrowsHit: stat.arrowsHit,
+      suicides: stat.suicides,
+      timesWounded: stat.timesWounded,
+      woundedRecoveries: stat.woundedRecoveries,
+      syringesUsed: stat.syringesUsed,
+      bandagesUsed: stat.bandagesUsed,
+      medkitsUsed: stat.medkitsUsed,
+      // PvE
+      animalKills: stat.animalKills,
+      npcKills: stat.npcKills,
+      // Boom
       rocketsLaunched: stat.rocketsLaunched,
       explosivesUsed: stat.explosivesUsed,
+      c4Used: stat.c4Used,
+      satchelsUsed: stat.satchelsUsed,
+      explosiveAmmoUsed: stat.explosiveAmmoUsed,
+      // Resources
+      woodGathered: stat.woodGathered,
+      stoneGathered: stat.stoneGathered,
+      metalOreGathered: stat.metalOreGathered,
+      sulfurOreGathered: stat.sulfurOreGathered,
+      resourcesGathered: stat.resourcesGathered,
+      // Building
+      blocksPlaced: stat.blocksPlaced,
+      blocksUpgraded: stat.blocksUpgraded,
+      // Looting
+      cratesLooted: stat.cratesLooted,
+      barrelsLooted: stat.barrelsLooted,
+      // Recycling
+      itemsRecycled: stat.itemsRecycled,
+      // Gambling
+      scrapGambled: stat.scrapGambled,
+      scrapWon: stat.scrapWon,
+      // Vehicles
+      boatsSpawned: stat.boatsSpawned,
+      minisSpawned: stat.minisSpawned,
+      // Vehicle Combat
+      vehicleKills: stat.vehicleKills,
+      // Fishing
+      fishCaught: stat.fishCaught,
+      // General
+      hoursPlayed: stat.hoursPlayed,
     };
   });
 

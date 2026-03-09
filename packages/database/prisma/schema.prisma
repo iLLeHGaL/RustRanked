@@ -315,7 +315,7 @@ model WipeStats {
   steamId         String
 
   // Server and wipe identification
-  serverType      ServerType
+  serverType      String     // Server slug (e.g., "us-main", "eu-small") — was ServerType enum
   wipeId          String     // Identifier for the wipe (e.g., "2024-01-15")
 
   // PvP
@@ -326,16 +326,54 @@ model WipeStats {
   bulletsHit        Int      @default(0)
   arrowsFired       Int      @default(0)
   arrowsHit         Int      @default(0)
+  suicides          Int      @default(0)
+  timesWounded      Int      @default(0)
+  woundedRecoveries Int      @default(0)
+  syringesUsed      Int      @default(0)
+  bandagesUsed      Int      @default(0)
+  medkitsUsed       Int      @default(0)
 
-  // Raiding
+  // PvE
+  animalKills       Int      @default(0)
+  npcKills          Int      @default(0)
+
+  // Raiding / Boom
   rocketsLaunched   Int      @default(0)
-  explosivesUsed    Int      @default(0)   // C4 + satchels
+  explosivesUsed    Int      @default(0)   // Total (C4 + satchels + legacy)
+  c4Used            Int      @default(0)
+  satchelsUsed      Int      @default(0)
+  explosiveAmmoUsed Int      @default(0)
 
-  // Farming
+  // Farming / Resources
   woodGathered      Int      @default(0)
   stoneGathered     Int      @default(0)
   metalOreGathered  Int      @default(0)
   sulfurOreGathered Int      @default(0)
+
+  // Building
+  blocksPlaced      Int      @default(0)
+  blocksUpgraded    Int      @default(0)
+
+  // Looting
+  cratesLooted      Int      @default(0)
+  barrelsLooted     Int      @default(0)
+
+  // Recycling
+  itemsRecycled     Int      @default(0)
+
+  // Gambling
+  scrapGambled      Int      @default(0)
+  scrapWon          Int      @default(0)
+
+  // Vehicles
+  boatsSpawned      Int      @default(0)
+  minisSpawned      Int      @default(0)
+
+  // Vehicle Combat
+  vehicleKills      Int      @default(0)
+
+  // Fishing
+  fishCaught        Int      @default(0)
 
   // General
   hoursPlayed       Float    @default(0)
