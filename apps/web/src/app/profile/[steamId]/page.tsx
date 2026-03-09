@@ -99,33 +99,6 @@ export default async function ProfilePage({ params }: { params: Promise<{ steamI
     }
   }
 
-  // Pending count (owner only)
-  let pendingCount = 0;
-  if (isOwner) {
-    pendingCount = await prisma.friendship.count({
-      where: { addresseeId: user.id, status: "PENDING" },
-    });
-  }
-
-  // Get accepted friends list (owner only, for top friends editing)
-  let friendsList: { friendshipId: string; user: { id: string; steamId: string | null; steamName: string | null; discordName: string; discordAvatar: string | null } }[] = [];
-  if (isOwner) {
-    const [sent, received] = await Promise.all([
-      prisma.friendship.findMany({
-        where: { requesterId: user.id, status: "ACCEPTED" },
-        include: { addressee: { select: { id: true, steamId: true, steamName: true, discordName: true, discordAvatar: true } } },
-      }),
-      prisma.friendship.findMany({
-        where: { addresseeId: user.id, status: "ACCEPTED" },
-        include: { requester: { select: { id: true, steamId: true, steamName: true, discordName: true, discordAvatar: true } } },
-      }),
-    ]);
-    friendsList = [
-      ...sent.map((f) => ({ friendshipId: f.id, user: f.addressee })),
-      ...received.map((f) => ({ friendshipId: f.id, user: f.requester })),
-    ];
-  }
-
   const stats = {
     totalHours: statsAgg._sum.hoursPlayed ?? 0,
     kills: statsAgg._sum.kills ?? 0,
@@ -138,6 +111,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ steamI
     sulfurOreGathered: statsAgg._sum.sulfurOreGathered ?? 0,
   };
 
+  const isVerified = user.verificationStatus === "VERIFIED";
+  const canPlay = isVerified && !!user.steamId;
+
   return (
     <ProfileContent
       user={{
@@ -147,7 +123,6 @@ export default async function ProfilePage({ params }: { params: Promise<{ steamI
         steamAvatar: user.steamAvatar,
         discordName: user.discordName,
         discordAvatar: user.discordAvatar,
-        verificationStatus: user.verificationStatus,
         profileViews: isOwner ? user.profileViews : user.profileViews + 1,
         createdAt: user.createdAt.toISOString(),
         vipAccess: user.vipAccess.map((v) => ({
@@ -158,6 +133,8 @@ export default async function ProfilePage({ params }: { params: Promise<{ steamI
         })),
       }}
       isOwner={isOwner}
+      hideStats={user.hideStats}
+      canPlay={canPlay}
       stats={stats}
       trophies={trophies.map((t) => ({
         id: t.id,
@@ -178,8 +155,6 @@ export default async function ProfilePage({ params }: { params: Promise<{ steamI
         },
       }))}
       friendshipStatus={friendshipStatus}
-      pendingCount={pendingCount}
-      friendsList={friendsList}
     />
   );
 }

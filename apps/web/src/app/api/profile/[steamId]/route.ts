@@ -21,6 +21,7 @@ export async function GET(
       verificationStatus: true,
       profileViews: true,
       createdAt: true,
+      hideStats: true,
       vipAccess: {
         where: { status: "ACTIVE", expiresAt: { gt: new Date() } },
         include: { server: true },
@@ -44,21 +45,26 @@ export async function GET(
     });
   }
 
+  // If hideStats is true and viewer is not the owner, return zeroed stats
+  const shouldHideStats = user.hideStats && !isOwner;
+
   // Get total hours and aggregated stats
-  const statsAgg = await prisma.wipeStats.aggregate({
-    where: { steamId },
-    _sum: {
-      hoursPlayed: true,
-      kills: true,
-      deaths: true,
-      headshots: true,
-      resourcesGathered: true,
-      woodGathered: true,
-      stoneGathered: true,
-      metalOreGathered: true,
-      sulfurOreGathered: true,
-    },
-  });
+  const statsAgg = shouldHideStats
+    ? null
+    : await prisma.wipeStats.aggregate({
+        where: { steamId },
+        _sum: {
+          hoursPlayed: true,
+          kills: true,
+          deaths: true,
+          headshots: true,
+          resourcesGathered: true,
+          woodGathered: true,
+          stoneGathered: true,
+          metalOreGathered: true,
+          sulfurOreGathered: true,
+        },
+      });
 
   // Get trophies
   const trophies = await prisma.trophy.findMany({
@@ -107,23 +113,38 @@ export async function GET(
     });
   }
 
+  const zeroStats = {
+    totalHours: 0,
+    kills: 0,
+    deaths: 0,
+    headshots: 0,
+    resourcesGathered: 0,
+    woodGathered: 0,
+    stoneGathered: 0,
+    metalOreGathered: 0,
+    sulfurOreGathered: 0,
+  };
+
   return NextResponse.json({
     user: {
       ...user,
       profileViews: isOwner ? user.profileViews : user.profileViews + 1,
     },
     isOwner,
-    stats: {
-      totalHours: statsAgg._sum.hoursPlayed ?? 0,
-      kills: statsAgg._sum.kills ?? 0,
-      deaths: statsAgg._sum.deaths ?? 0,
-      headshots: statsAgg._sum.headshots ?? 0,
-      resourcesGathered: statsAgg._sum.resourcesGathered ?? 0,
-      woodGathered: statsAgg._sum.woodGathered ?? 0,
-      stoneGathered: statsAgg._sum.stoneGathered ?? 0,
-      metalOreGathered: statsAgg._sum.metalOreGathered ?? 0,
-      sulfurOreGathered: statsAgg._sum.sulfurOreGathered ?? 0,
-    },
+    hideStats: user.hideStats && !isOwner,
+    stats: shouldHideStats
+      ? zeroStats
+      : {
+          totalHours: statsAgg!._sum.hoursPlayed ?? 0,
+          kills: statsAgg!._sum.kills ?? 0,
+          deaths: statsAgg!._sum.deaths ?? 0,
+          headshots: statsAgg!._sum.headshots ?? 0,
+          resourcesGathered: statsAgg!._sum.resourcesGathered ?? 0,
+          woodGathered: statsAgg!._sum.woodGathered ?? 0,
+          stoneGathered: statsAgg!._sum.stoneGathered ?? 0,
+          metalOreGathered: statsAgg!._sum.metalOreGathered ?? 0,
+          sulfurOreGathered: statsAgg!._sum.sulfurOreGathered ?? 0,
+        },
     trophies: trophies.map((t) => ({
       id: t.id,
       rank: t.rank,

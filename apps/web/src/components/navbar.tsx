@@ -70,7 +70,7 @@ export function Navbar() {
           {isLoading ? (
             <div className="h-9 w-9 bg-zinc-800 rounded-full animate-pulse" />
           ) : isLoggedIn ? (
-            <UserMenu user={session.user} />
+            <UserMenu user={session.user} steamId={session.user.steamId} />
           ) : (
             <Link href="/login" className="btn-primary">
               Sign In

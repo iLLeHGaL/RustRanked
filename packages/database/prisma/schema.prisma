@@ -49,7 +49,8 @@ model User {
   flagsAsExisting     IdentityFlag[] @relation("matchedUser")
 
   // Profile
-  profileViews  Int  @default(0)
+  profileViews  Int      @default(0)
+  hideStats     Boolean  @default(false)
 
   // Friends
   friendRequestsSent     Friendship[] @relation("friendRequestsSent")

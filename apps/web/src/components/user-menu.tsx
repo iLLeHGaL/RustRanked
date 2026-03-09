@@ -6,10 +6,11 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   User,
-  LayoutDashboard,
+  Settings,
   CreditCard,
   HelpCircle,
   LogOut,
+  ShieldCheck,
 } from "lucide-react";
 
 interface UserMenuProps {
@@ -17,9 +18,10 @@ interface UserMenuProps {
     name?: string | null;
     image?: string | null;
   };
+  steamId?: string | null;
 }
 
-export function UserMenu({ user }: UserMenuProps) {
+export function UserMenu({ user, steamId }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -57,6 +59,8 @@ export function UserMenu({ user }: UserMenuProps) {
     };
   }, [isOpen]);
 
+  const profileHref = steamId ? `/profile/${steamId}` : "/dashboard";
+
   return (
     <div className="relative" ref={menuRef}>
       {/* Avatar Button */}
@@ -92,12 +96,28 @@ export function UserMenu({ user }: UserMenuProps) {
           {/* Menu Items */}
           <div className="py-1">
             <Link
-              href="/dashboard"
+              href={profileHref}
               onClick={() => setIsOpen(false)}
               className="flex items-center gap-3 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
             >
-              <LayoutDashboard className="h-4 w-4" />
-              Dashboard
+              <User className="h-4 w-4" />
+              My Profile
+            </Link>
+            <Link
+              href="/settings"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-3 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </Link>
+            <Link
+              href="/verify"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-3 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              Verify
             </Link>
             <Link
               href="/billing"
