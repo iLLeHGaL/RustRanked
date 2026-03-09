@@ -26,6 +26,7 @@ import { Navbar } from "@/components/navbar";
 import { RankBadge } from "@/components/rank-badge";
 import { TrophyCard } from "@/components/trophy-card";
 import { getKDRatio } from "@/lib/utils";
+import { Trophy } from "lucide-react";
 
 interface ProfileUser {
   id: string;
@@ -103,6 +104,12 @@ export function ProfileContent({
 
   const hasVip = user.vipAccess.length > 0;
   const showStats = isOwner || !hideStats;
+
+  // Trophy counts
+  const championCount = trophies.filter((t) => t.rank === 1 && t.category === "MOST_KILLS").length;
+  const goldCount = trophies.filter((t) => t.rank === 1).length;
+  const silverCount = trophies.filter((t) => t.rank === 2).length;
+  const bronzeCount = trophies.filter((t) => t.rank === 3).length;
 
   async function handleAddFriend() {
     setFriendLoading(true);
@@ -207,6 +214,13 @@ export function ProfileContent({
                     VIP
                   </span>
                 )}
+              </div>
+              {/* Trophy Counts */}
+              <div className="mt-2 flex items-center gap-3">
+                <TrophyBadge label="Champion" count={championCount} color="text-purple-400" bg="bg-purple-400/10" />
+                <TrophyBadge label="Gold" count={goldCount} color="text-yellow-400" bg="bg-yellow-400/10" />
+                <TrophyBadge label="Silver" count={silverCount} color="text-zinc-300" bg="bg-zinc-300/10" />
+                <TrophyBadge label="Bronze" count={bronzeCount} color="text-orange-600" bg="bg-orange-600/10" />
               </div>
             </div>
 
@@ -338,6 +352,16 @@ export function ProfileContent({
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function TrophyBadge({ label, count, color, bg }: { label: string; count: number; color: string; bg: string }) {
+  return (
+    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full ${bg}`}>
+      <Trophy className={`h-3.5 w-3.5 ${color}`} />
+      <span className={`text-xs font-semibold ${color}`}>{count}</span>
+      <span className="text-xs text-zinc-500">{label}</span>
     </div>
   );
 }
