@@ -36,19 +36,7 @@ export function Navbar() {
             href="/players"
             className="text-sm text-zinc-400 hover:text-white transition-colors"
           >
-            Players
-          </Link>
-          <Link
-            href="/rules"
-            className="text-sm text-zinc-400 hover:text-white transition-colors"
-          >
-            Rules
-          </Link>
-          <Link
-            href="/faq"
-            className="text-sm text-zinc-400 hover:text-white transition-colors"
-          >
-            FAQ
+            Hall of Fame
           </Link>
           <Link
             href="/vip"
