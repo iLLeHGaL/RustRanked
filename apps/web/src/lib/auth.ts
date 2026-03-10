@@ -75,6 +75,7 @@ export const authOptions: NextAuthOptions = {
         if (user) {
           token.userId = user.id;
           token.steamId = user.steamId;
+          token.steamName = user.steamName;
           token.verificationStatus = user.verificationStatus;
           token.subscriptionStatus = user.subscription?.status || null;
         }
@@ -86,6 +87,7 @@ export const authOptions: NextAuthOptions = {
         ...session,
         user: {
           ...session.user,
+          name: (token.steamName as string | null) ?? session.user?.name,
           id: token.userId as string,
           discordId: token.discordId as string,
           steamId: token.steamId as string | null,
