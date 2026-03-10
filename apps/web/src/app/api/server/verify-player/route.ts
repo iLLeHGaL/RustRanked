@@ -11,13 +11,21 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { steamId } = body;
+    const { steamId, playerName } = body;
 
     if (!steamId) {
       return NextResponse.json(
         { error: "steamId is required" },
         { status: 400 }
       );
+    }
+
+    // Update Steam name if provided by the game server
+    if (playerName && typeof playerName === "string") {
+      await prisma.user.updateMany({
+        where: { steamId },
+        data: { steamName: playerName },
+      });
     }
 
     // Find user by Steam ID (VIP filtered to this specific server)

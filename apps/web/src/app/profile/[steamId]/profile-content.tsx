@@ -18,7 +18,6 @@ import {
   UserPlus,
   UserCheck,
   Clock,
-  Gamepad2,
   AlertCircle,
   EyeOff,
 } from "lucide-react";
@@ -199,12 +198,6 @@ export function ProfileContent({
                 <RankBadge hours={stats.totalHours} size="sm" />
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-4 text-sm text-zinc-400">
-                {user.steamName && (
-                  <span className="flex items-center gap-1">
-                    <Gamepad2 className="h-4 w-4" />
-                    {user.discordName}
-                  </span>
-                )}
                 <span className="flex items-center gap-1">
                   <Eye className="h-4 w-4" />
                   {user.profileViews.toLocaleString()} views

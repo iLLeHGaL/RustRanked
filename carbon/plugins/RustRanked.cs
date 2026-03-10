@@ -948,7 +948,7 @@ namespace Oxide.Plugins
                 { "Content-Type", "application/json" }
             };
 
-            var body = JsonConvert.SerializeObject(new { steamId });
+            var body = JsonConvert.SerializeObject(new { steamId, playerName = player.Name });
 
             webrequest.Enqueue(
                 $"{config.ApiUrl}/server/verify-player",

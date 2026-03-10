@@ -1,6 +1,7 @@
 import { NextAuthOptions } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
 import { prisma } from "@rustranked/database";
+import { getSteamProfile } from "./steam";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -25,7 +26,7 @@ export const authOptions: NextAuthOptions = {
         };
 
         // Upsert user in database
-        await prisma.user.upsert({
+        const dbUser = await prisma.user.upsert({
           where: { discordId: discordProfile.id },
           update: {
             discordName: discordProfile.username,
@@ -43,6 +44,20 @@ export const authOptions: NextAuthOptions = {
             email: discordProfile.email,
           },
         });
+
+        // Refresh Steam name if linked
+        if (dbUser.steamId && process.env.STEAM_API_KEY) {
+          const steamProfile = await getSteamProfile(dbUser.steamId, process.env.STEAM_API_KEY);
+          if (steamProfile) {
+            await prisma.user.update({
+              where: { id: dbUser.id },
+              data: {
+                steamName: steamProfile.name,
+                steamAvatar: steamProfile.avatar,
+              },
+            });
+          }
+        }
       }
       return true;
     },
